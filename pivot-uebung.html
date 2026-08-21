@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prototyp: Pivot-Tabelle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --excel-green: #107C41;
+    --excel-green-dark: #0B5C30;
+    --excel-green-tint: #E9F6EE;
+    --grid-gray: #D7DCE1;
+    --header-gray: #F2F4F6;
+    --error-red: #D92D20;
+    --error-red-tint: #FBEAE9;
+    --success-green: #15803D;
+    --success-green-tint: #EAF7EF;
+
+    --text-primary: #1F2A24;
+    --text-muted: #5B6B63;
+    --border-color: #E1E5E2;
+    --surface: #FFFFFF;
+    --page-bg: #F7F9F8;
+
+    --font-heading: "Space Grotesk", sans-serif;
+    --font-body: "Inter", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--page-bg);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 { font-family: var(--font-heading); margin: 0; color: var(--text-primary); }
+
+  header.site-header {
+    background: linear-gradient(135deg, var(--excel-green) 0%, var(--excel-green-dark) 100%);
+    color: #fff;
+    padding: 1.1rem 1.5rem;
+  }
+
+  .site-header__inner { max-width: 1180px; margin: 0 auto; display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+  .site-header__inner h1 { font-size: 1.25rem; font-weight: 600; }
+  .site-header__badge {
+    font-size: 0.75rem;
+    background: rgba(255,255,255,0.16);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+  }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.3rem;
+    box-shadow: 0 1px 2px rgba(16,124,65,0.06), 0 4px 14px rgba(16,124,65,0.06);
+  }
+
+  .task-card h2 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+  .task-card p { margin: 0.3rem 0; color: var(--text-primary); }
+  .task-card .goal { color: var(--text-muted); font-size: 0.92rem; }
+
+  .hints-toggle {
+    margin-top: 0.7rem;
+    background: none;
+    border: none;
+    color: var(--excel-green-dark);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .hints-box {
+    display: none;
+    margin-top: 0.6rem;
+    background: var(--excel-green-tint);
+    border: 1px solid var(--excel-green);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
+  }
+  .hints-box.open { display: block; }
+  .hints-box ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  @media (max-width: 860px) {
+    .workspace { grid-template-columns: 1fr; }
+  }
+
+  .source-panel h3, .builder-panel h3, .result-panel h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .source-table-wrap {
+    max-height: 340px;
+    overflow: auto;
+    border: 1px solid var(--grid-gray);
+    border-radius: 8px;
+  }
+
+  table.source-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.82rem;
+    font-family: var(--font-mono);
+  }
+
+  table.source-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--header-gray);
+    border-bottom: 1px solid var(--grid-gray);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--text-muted);
+    z-index: 1;
+  }
+
+  table.source-table td {
+    padding: 0.32rem 0.6rem;
+    border-bottom: 1px solid var(--grid-gray);
+    white-space: nowrap;
+  }
+
+  table.source-table tbody tr:nth-child(even) { background: #FBFCFB; }
+
+  .source-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  .builder-and-result {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .builder-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.7rem;
+  }
+
+  .field-source {
+    margin-bottom: 0.9rem;
+  }
+
+  .field-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--excel-green-tint);
+    border: 1px solid var(--excel-green);
+    color: var(--excel-green-dark);
+    border-radius: 7px;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .chip:active { cursor: grabbing; }
+
+  .chip.dragging { opacity: 0.4; }
+
+  .chip.selected {
+    outline: 2px solid var(--excel-green-dark);
+    outline-offset: 1px;
+  }
+
+  .chip .field-icon { font-size: 0.9rem; }
+
+  .zone-chip {
+    background: #fff;
+    border: 1px solid var(--excel-green);
+  }
+
+  .zone-chip button.chip-remove {
+    border: none;
+    background: none;
+    color: var(--error-red);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.1rem;
+    font-weight: 700;
+  }
+
+  .zone-chip .agg-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .dropzone {
+    border: 1.5px dashed var(--grid-gray);
+    border-radius: 8px;
+    background: var(--header-gray);
+    padding: 0.55rem 0.65rem;
+    min-height: 74px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .dropzone .zone-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .dropzone .zone-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .dropzone .zone-placeholder {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .dropzone.dragover {
+    background: var(--excel-green-tint);
+    border-color: var(--excel-green);
+  }
+
+  .dropzone.selectable {
+    cursor: pointer;
+  }
+
+  .result-table-wrap {
+    overflow: auto;
+    border: 1px solid var(--grid-gray);
+    border-radius: 8px;
+  }
+
+  table.pivot-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.88rem;
+  }
+
+  table.pivot-table th, table.pivot-table td {
+    border: 1px solid var(--grid-gray);
+    padding: 0.4rem 0.7rem;
+    text-align: right;
+    font-family: var(--font-mono);
+  }
+
+  table.pivot-table th {
+    background: var(--header-gray);
+    font-family: var(--font-body);
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-primary);
+  }
+
+  table.pivot-table td.rowlabel, table.pivot-table th.rowlabel {
+    text-align: left;
+    font-family: var(--font-body);
+    font-weight: 500;
+    background: #FBFCFB;
+  }
+
+  table.pivot-table tr.total-row td, table.pivot-table tr.total-row th {
+    font-weight: 700;
+    background: var(--excel-green-tint);
+  }
+
+  .empty-pivot {
+    padding: 1.6rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border: 1.5px dashed var(--grid-gray);
+    border-radius: 8px;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  button.btn {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    padding: 0.55rem 1.1rem;
+    cursor: pointer;
+    border: 1px solid var(--excel-green);
+  }
+
+  button.btn-primary {
+    background: var(--excel-green);
+    color: #fff;
+    border-color: var(--excel-green);
+  }
+  button.btn-primary:hover { background: var(--excel-green-dark); }
+
+  button.btn-secondary {
+    background: #fff;
+    color: var(--excel-green-dark);
+  }
+  button.btn-secondary:hover { background: var(--excel-green-tint); }
+
+  #feedback {
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.7rem 0.9rem;
+    border-radius: 8px;
+    display: none;
+  }
+  #feedback.show { display: block; }
+  #feedback.correct { background: var(--success-green-tint); color: var(--success-green); border: 1px solid var(--success-green); }
+  #feedback.incorrect { background: var(--error-red-tint); color: var(--error-red); border: 1px solid var(--error-red); }
+
+  .zone-title-with-hint { display: flex; align-items: center; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header__inner">
+    <h1>Excel<span style="opacity:.75">.</span>Flo — Pivot-Tabelle</h1>
+    <span class="site-header__badge">Prototyp, noch nicht im Übungsportal</span>
+  </div>
+</header>
+
+<main>
+  <section class="card task-card">
+    <h2>Aufgabe: Umsatz je Region auswerten</h2>
+    <p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>
+    <p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>
+    <button class="hints-toggle" id="hints-toggle">Tipps anzeigen</button>
+    <div class="hints-box" id="hints-box">
+      <ul>
+        <li>Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong>.</li>
+        <li>Das Feld, das aufsummiert werden soll, gehört in den Bereich <strong>Werte</strong>.</li>
+        <li>Klicke auf ein Feld im Bereich „Werte“, um die Aggregation (Summe / Anzahl / Mittelwert …) umzuschalten.</li>
+        <li>Ein Feld per Klick auf das × wieder aus einem Bereich entfernen.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="workspace">
+    <section class="card source-panel">
+      <h3>Quelldaten (2026)</h3>
+      <div class="source-table-wrap">
+        <table class="source-table">
+          <thead><tr><th>Datum</th><th>Region</th><th>Umsatz</th></tr></thead>
+          <tbody id="source-tbody"></tbody>
+        </table>
+      </div>
+      <p class="source-meta" id="source-meta"></p>
+    </section>
+
+    <div class="builder-and-result">
+      <section class="card builder-panel">
+        <div class="field-source">
+          <h3>Verfügbare Felder</h3>
+          <div class="field-chip-row" id="field-list"></div>
+        </div>
+
+        <div class="builder-grid">
+          <div class="dropzone selectable" data-zone="filter">
+            <span class="zone-label">Filter</span>
+            <div class="zone-chips" id="zone-filter"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="dropzone selectable" data-zone="columns">
+            <span class="zone-label">Spalten</span>
+            <div class="zone-chips" id="zone-columns"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="dropzone selectable" data-zone="rows">
+            <span class="zone-label">Zeilen</span>
+            <div class="zone-chips" id="zone-rows"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="dropzone selectable" data-zone="values">
+            <span class="zone-label">Werte</span>
+            <div class="zone-chips" id="zone-values"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card result-panel">
+        <h3>Pivot-Tabelle (Vorschau)</h3>
+        <div id="pivot-result"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-check">Prüfen</button>
+    <button class="btn btn-secondary" id="btn-reset">Zurücksetzen</button>
+  </div>
+  <div id="feedback"></div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Datengenerierung (seeded, damit die Demo stabil bleibt) ----------
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var rand = mulberry32(20260101);
+
+  var REGIONS = ["Nord", "Süd", "Ost", "West"];
+  var REGION_BASE = { Nord: 900, "Süd": 1100, Ost: 700, West: 1250 };
+
+  function serialToDate(days) {
+    // 2026-01-01 + days
+    var d = new Date(Date.UTC(2026, 0, 1));
+    d.setUTCDate(d.getUTCDate() + days);
+    return d;
+  }
+
+  function formatDate(d) {
+    var dd = String(d.getUTCDate()).padStart(2, "0");
+    var mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return dd + "." + mm + "." + d.getUTCFullYear();
+  }
+
+  var DATA = [];
+  var dayCount = (Date.UTC(2027, 0, 1) - Date.UTC(2026, 0, 1)) / 86400000; // 365
+  for (var i = 0; i < dayCount; i++) {
+    var date = serialToDate(i);
+    var region = REGIONS[Math.floor(rand() * REGIONS.length)];
+    var base = REGION_BASE[region];
+    var umsatz = Math.round(base + (rand() - 0.4) * 700);
+    if (umsatz < 50) umsatz = 50;
+    DATA.push({ Datum: date, Region: region, Umsatz: umsatz });
+  }
+
+  function formatCurrency(n) {
+    return n.toLocaleString("de-DE", { maximumFractionDigits: 0 }) + " €";
+  }
+  function formatNumber(n) {
+    return n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+  }
+
+  // ---------- Quelltabelle rendern ----------
+  var tbody = document.getElementById("source-tbody");
+  var rowsHtml = "";
+  for (var r = 0; r < DATA.length; r++) {
+    var row = DATA[r];
+    rowsHtml += "<tr><td>" + formatDate(row.Datum) + "</td><td>" + row.Region + "</td><td>" + formatCurrency(row.Umsatz) + "</td></tr>";
+  }
+  tbody.innerHTML = rowsHtml;
+  document.getElementById("source-meta").textContent = DATA.length + " Zeilen · Zeitraum 01.01.2026 – 31.12.2026";
+
+  // ---------- Feld-Definitionen ----------
+  var FIELDS = {
+    Datum: { icon: "📅", type: "date" },
+    Region: { icon: "🌍", type: "text" },
+    Umsatz: { icon: "💰", type: "number" }
+  };
+
+  var AGGS_NUMERIC = ["Summe", "Anzahl", "Mittelwert", "Min", "Max"];
+  var AGGS_TEXT = ["Anzahl"];
+
+  function defaultAgg(fieldName) {
+    return FIELDS[fieldName].type === "number" ? "Summe" : "Anzahl";
+  }
+
+  function aggregate(agg, values) {
+    if (agg === "Anzahl") return values.length;
+    var nums = values.map(Number);
+    if (agg === "Summe") return nums.reduce(function (a, b) { return a + b; }, 0);
+    if (agg === "Mittelwert") return nums.length ? nums.reduce(function (a, b) { return a + b; }, 0) / nums.length : 0;
+    if (agg === "Min") return nums.length ? Math.min.apply(null, nums) : 0;
+    if (agg === "Max") return nums.length ? Math.max.apply(null, nums) : 0;
+    return 0;
+  }
+
+  function formatAggResult(agg, fieldName, value) {
+    if (agg === "Anzahl") return formatNumber(value);
+    if (FIELDS[fieldName].type === "number") return formatCurrency(Math.round(value * 100) / 100);
+    return formatNumber(value);
+  }
+
+  // ---------- Zustand ----------
+  // zones.rows / columns / filter: array of field names
+  // zones.values: array of { field, agg }
+  var zones = { filter: [], columns: [], rows: [], values: [] };
+  var selectedField = null; // field name currently selected via click (mobile fallback)
+
+  var fieldListEl = document.getElementById("field-list");
+  var zoneEls = {
+    filter: document.getElementById("zone-filter"),
+    columns: document.getElementById("zone-columns"),
+    rows: document.getElementById("zone-rows"),
+    values: document.getElementById("zone-values")
+  };
+
+  function fieldInZone(zoneKey, fieldName) {
+    if (zoneKey === "values") return zones.values.some(function (v) { return v.field === fieldName; });
+    return zones[zoneKey].indexOf(fieldName) !== -1;
+  }
+
+  function addFieldToZone(zoneKey, fieldName) {
+    if (fieldInZone(zoneKey, fieldName)) return;
+    if (zoneKey === "values") {
+      zones.values.push({ field: fieldName, agg: defaultAgg(fieldName) });
+    } else {
+      zones[zoneKey].push(fieldName);
+    }
+    renderAll();
+  }
+
+  function removeFieldFromZone(zoneKey, fieldName) {
+    if (zoneKey === "values") {
+      zones.values = zones.values.filter(function (v) { return v.field !== fieldName; });
+    } else {
+      zones[zoneKey] = zones[zoneKey].filter(function (f) { return f !== fieldName; });
+    }
+    renderAll();
+  }
+
+  function cycleAgg(fieldName) {
+    var entry = zones.values.find(function (v) { return v.field === fieldName; });
+    if (!entry) return;
+    var list = FIELDS[fieldName].type === "number" ? AGGS_NUMERIC : AGGS_TEXT;
+    var idx = list.indexOf(entry.agg);
+    entry.agg = list[(idx + 1) % list.length];
+    renderAll();
+  }
+
+  // ---------- Rendering: Feldliste ----------
+  function renderFieldList() {
+    var html = "";
+    Object.keys(FIELDS).forEach(function (name) {
+      var sel = selectedField === name ? " selected" : "";
+      html += '<span class="chip' + sel + '" draggable="true" data-field="' + name + '">' +
+        '<span class="field-icon">' + FIELDS[name].icon + "</span>" + name + "</span>";
+    });
+    fieldListEl.innerHTML = html;
+
+    fieldListEl.querySelectorAll(".chip").forEach(function (chip) {
+      chip.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", chip.dataset.field);
+        chip.classList.add("dragging");
+      });
+      chip.addEventListener("dragend", function () { chip.classList.remove("dragging"); });
+      chip.addEventListener("click", function () {
+        selectedField = selectedField === chip.dataset.field ? null : chip.dataset.field;
+        renderFieldList();
+      });
+    });
+  }
+
+  // ---------- Rendering: Drop-Zonen ----------
+  function renderZone(zoneKey) {
+    var el = zoneEls[zoneKey];
+    var entries = zoneKey === "values" ? zones.values : zones[zoneKey].map(function (f) { return { field: f }; });
+
+    if (entries.length === 0) {
+      el.innerHTML = '<span class="zone-placeholder">Felder hierher ziehen</span>';
+      return;
+    }
+
+    var html = "";
+    entries.forEach(function (entry) {
+      var fieldName = entry.field;
+      var aggLabel = zoneKey === "values" ? '<span class="agg-label">' + entry.agg + "</span>" : "";
+      html += '<span class="chip zone-chip" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
+        '<span class="field-icon">' + FIELDS[fieldName].icon + "</span>" +
+        '<span class="chip-text">' + fieldName + "</span>" + aggLabel +
+        '<button class="chip-remove" type="button" aria-label="Entfernen">×</button></span>';
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll(".chip-remove").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var chip = btn.closest(".zone-chip");
+        removeFieldFromZone(chip.dataset.zone, chip.dataset.field);
+      });
+    });
+
+    if (zoneKey === "values") {
+      el.querySelectorAll(".zone-chip").forEach(function (chip) {
+        chip.addEventListener("click", function (e) {
+          if (e.target.classList.contains("chip-remove")) return;
+          cycleAgg(chip.dataset.field);
+        });
+      });
+    }
+  }
+
+  function renderZones() {
+    Object.keys(zoneEls).forEach(renderZone);
+  }
+
+  // ---------- Drag & Drop + Klick-Fallback auf Zonen ----------
+  Object.keys(zoneEls).forEach(function (zoneKey) {
+    var dropEl = zoneEls[zoneKey].closest(".dropzone");
+
+    dropEl.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      dropEl.classList.add("dragover");
+    });
+    dropEl.addEventListener("dragleave", function () { dropEl.classList.remove("dragover"); });
+    dropEl.addEventListener("drop", function (e) {
+      e.preventDefault();
+      dropEl.classList.remove("dragover");
+      var fieldName = e.dataTransfer.getData("text/plain");
+      if (fieldName && FIELDS[fieldName]) addFieldToZone(zoneKey, fieldName);
+    });
+
+    dropEl.addEventListener("click", function (e) {
+      if (e.target.closest(".zone-chip")) return; // handled separately
+      if (selectedField) {
+        addFieldToZone(zoneKey, selectedField);
+        selectedField = null;
+        renderFieldList();
+      }
+    });
+  });
+
+  // ---------- Pivot-Berechnung ----------
+  function uniqueSorted(values) {
+    var set = Array.from(new Set(values));
+    set.sort(function (a, b) { return String(a).localeCompare(String(b), "de"); });
+    return set;
+  }
+
+  function comboKey(fields, row) {
+    return fields.map(function (f) { return row[f]; }).join(" | ");
+  }
+
+  function renderPivot() {
+    var container = document.getElementById("pivot-result");
+    var rowFields = zones.rows;
+    var colFields = zones.columns;
+    var valueFields = zones.values;
+    var filterFields = zones.filter;
+
+    if (rowFields.length === 0 && colFields.length === 0) {
+      container.innerHTML = '<div class="empty-pivot">Ziehe Felder in „Zeilen“ und „Werte“, um eine Pivot-Tabelle zu erzeugen.</div>';
+      return;
+    }
+    if (valueFields.length === 0) {
+      container.innerHTML = '<div class="empty-pivot">Es fehlt noch ein Feld im Bereich „Werte“.</div>';
+      return;
+    }
+
+    // (Filter-Felder werden im Prototyp nur als Bereich unterstützt, ohne aktive Filterung.)
+    var data = DATA;
+
+    var rowKeys = rowFields.length ? uniqueSorted(data.map(function (d) { return comboKey(rowFields, d); })) : ["Gesamt"];
+    var colKeys = colFields.length ? uniqueSorted(data.map(function (d) { return comboKey(colFields, d); })) : ["Gesamt"];
+
+    function matches(row, fields, key) {
+      if (!fields.length) return true;
+      return comboKey(fields, row) === key;
+    }
+
+    var html = '<div class="result-table-wrap"><table class="pivot-table"><thead>';
+
+    // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
+    html += "<tr><th class=\"rowlabel\">" + (rowFields.length ? rowFields.join(" / ") : "") + "</th>";
+    colKeys.forEach(function (ck) {
+      html += '<th colspan="' + valueFields.length + '">' + ck + "</th>";
+    });
+    if (colFields.length) html += '<th colspan="' + valueFields.length + '">Gesamt</th>';
+    html += "</tr>";
+
+    // Kopfzeile 2: Wertefeld/Aggregation je Spalte
+    html += "<tr><th class=\"rowlabel\"></th>";
+    colKeys.forEach(function () {
+      valueFields.forEach(function (vf) {
+        html += "<th>" + vf.agg + " von " + vf.field + "</th>";
+      });
+    });
+    if (colFields.length) {
+      valueFields.forEach(function (vf) {
+        html += "<th>" + vf.agg + " von " + vf.field + "</th>";
+      });
+    }
+    html += "</tr></thead><tbody>";
+
+    rowKeys.forEach(function (rk) {
+      html += "<tr><td class=\"rowlabel\">" + rk + "</td>";
+      var rowMatched = data.filter(function (d) { return matches(d, rowFields, rk); });
+      colKeys.forEach(function (ck) {
+        var cellData = rowMatched.filter(function (d) { return matches(d, colFields, ck); });
+        valueFields.forEach(function (vf) {
+          var val = aggregate(vf.agg, cellData.map(function (d) { return d[vf.field]; }));
+          html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+        });
+      });
+      if (colFields.length) {
+        valueFields.forEach(function (vf) {
+          var val = aggregate(vf.agg, rowMatched.map(function (d) { return d[vf.field]; }));
+          html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+        });
+      }
+      html += "</tr>";
+    });
+
+    // Gesamtsumme-Zeile
+    html += '<tr class="total-row"><td class="rowlabel">Gesamt</td>';
+    colKeys.forEach(function (ck) {
+      var colMatched = data.filter(function (d) { return matches(d, colFields, ck); });
+      valueFields.forEach(function (vf) {
+        var val = aggregate(vf.agg, colMatched.map(function (d) { return d[vf.field]; }));
+        html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+      });
+    });
+    if (colFields.length) {
+      valueFields.forEach(function (vf) {
+        var val = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
+        html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+      });
+    }
+    html += "</tr></tbody></table></div>";
+
+    container.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderZones();
+    renderPivot();
+  }
+
+  // ---------- Prüfen ----------
+  var feedbackEl = document.getElementById("feedback");
+
+  document.getElementById("btn-check").addEventListener("click", function () {
+    var rowsOk = zones.rows.length === 1 && zones.rows[0] === "Region";
+    var valuesOk = zones.values.length === 1 && zones.values[0].field === "Umsatz" && zones.values[0].agg === "Summe";
+    var columnsOk = zones.columns.length === 0;
+    var filterOk = zones.filter.length === 0;
+
+    feedbackEl.classList.remove("correct", "incorrect");
+    feedbackEl.classList.add("show");
+
+    if (rowsOk && valuesOk && columnsOk && filterOk) {
+      feedbackEl.classList.add("correct");
+      feedbackEl.textContent = "Richtig! 🎉 Region liegt in Zeilen, Umsatz mit „Summe“ in Werte — genau die Pivot-Tabelle, die gesucht war.";
+      return;
+    }
+
+    var problems = [];
+    if (!rowsOk) problems.push("„Region“ muss (allein) im Bereich Zeilen liegen.");
+    if (!valuesOk) problems.push("„Umsatz“ muss (allein) im Bereich Werte liegen, mit Aggregation „Summe“.");
+    if (!columnsOk) problems.push("Für diese Aufgabe wird der Bereich Spalten nicht benötigt.");
+    if (!filterOk) problems.push("Für diese Aufgabe wird der Bereich Filter nicht benötigt.");
+
+    feedbackEl.classList.add("incorrect");
+    feedbackEl.textContent = "Noch nicht ganz: " + problems.join(" ");
+  });
+
+  document.getElementById("btn-reset").addEventListener("click", function () {
+    zones = { filter: [], columns: [], rows: [], values: [] };
+    selectedField = null;
+    feedbackEl.classList.remove("show", "correct", "incorrect");
+    renderFieldList();
+    renderAll();
+  });
+
+  document.getElementById("hints-toggle").addEventListener("click", function () {
+    var box = document.getElementById("hints-box");
+    var open = box.classList.toggle("open");
+    this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
+  });
+
+  renderFieldList();
+  renderAll();
+})();
+</script>
+</body>
+</html>
