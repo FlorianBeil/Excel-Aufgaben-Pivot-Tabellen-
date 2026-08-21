@@ -560,8 +560,10 @@
   // ---------- Übungs-Definitionen ----------
   // Jede Übung hat eine "solution": welche Felder in Zeilen/Spalten/Filter liegen
   // müssen und welches Wertefeld mit welcher Aggregation in "Werte" gehört.
-  // Zonen-Zuordnung wird hier (noch) exakt geprüft, siehe Schritt 2 für die
-  // flexiblere, ergebnisbasierte Prüfung.
+  // rowsColsInterchangeable: true bedeutet, dass die Gruppierungsfelder wahlweise
+  // in Zeilen ODER Spalten liegen dürfen (nur transponiert, inhaltlich gleich) —
+  // die Prüfung vergleicht dafür das tatsächlich berechnete Pivot-Ergebnis statt
+  // starrer Feld-Zone-Zuordnungen, siehe checkSolution() weiter unten.
   var EXERCISES = [
     {
       id: "umsatz-je-region",
@@ -569,7 +571,7 @@
       intro: "<p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>" +
         '<p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>',
       hints: [
-        "Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong>.",
+        "Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong> — beides ergibt eine inhaltlich richtige, nur transponierte Tabelle).",
         "Das Feld, das ausgewertet werden soll, gehört in den Bereich <strong>Werte</strong>.",
         "Klicke auf das Dropdown im „Werte“-Chip, um die Aggregation (Summe / Anzahl / Mittelwert …) zu ändern.",
         "Ein Feld per Klick auf das × wieder aus einem Bereich entfernen."
@@ -578,7 +580,8 @@
         rows: ["Region"],
         columns: [],
         filter: [],
-        values: [{ field: "Umsatz", agg: "Summe" }]
+        values: [{ field: "Umsatz", agg: "Summe" }],
+        rowsColsInterchangeable: true
       }
     },
     {
@@ -595,7 +598,8 @@
         rows: ["Region"],
         columns: [],
         filter: [],
-        values: [{ field: "Umsatz", agg: "Anzahl" }]
+        values: [{ field: "Umsatz", agg: "Anzahl" }],
+        rowsColsInterchangeable: true
       }
     }
   ];
@@ -883,9 +887,13 @@
   }
 
   // ---------- Prüfen ----------
-  // Schritt 1: exakter Abgleich mit der hinterlegten Musterkonfiguration
-  // (Feld -> Zone, plus Aggregation bei "Werte"). Die flexiblere,
-  // ergebnisbasierte Prüfung (Zeilen/Spalten austauschbar) folgt in Schritt 2.
+  // Statt starr zu prüfen, ob Felder in exakt der hinterlegten Zone liegen,
+  // wird das vom Nutzer tatsächlich erzeugte Pivot-Ergebnis (Gruppierung +
+  // Aggregation) berechnet und mit einer genauso berechneten Musterlösung
+  // verglichen. Das akzeptiert automatisch jede inhaltlich gleichwertige
+  // Lösung (z.B. Gruppierungsfeld in Spalten statt Zeilen, wenn
+  // rowsColsInterchangeable gesetzt ist) und deckt gleichzeitig eine falsche
+  // Aggregation ab, weil die berechneten Werte dann nicht mehr übereinstimmen.
   var feedbackEl = document.getElementById("feedback");
 
   function sameSet(a, b) {
@@ -893,36 +901,83 @@
     return as.length === bs.length && as.every(function (v, i) { return v === bs[i]; });
   }
 
-  function sameValues(a, b) {
-    var as = a.map(function (v) { return v.field + ":" + v.agg; }).sort();
-    var bs = b.map(function (v) { return v.field + ":" + v.agg; }).sort();
-    return as.length === bs.length && as.every(function (v, i) { return v === bs[i]; });
+  function computeFlatResultSet(groupFields, valueFields, data) {
+    var combos = groupFields.length ? uniqueSorted(data.map(function (d) { return comboKey(groupFields, d); })) : ["Gesamt"];
+    return combos.map(function (combo) {
+      var matched = groupFields.length ? data.filter(function (d) { return comboKey(groupFields, d) === combo; }) : data;
+      var values = {};
+      valueFields.forEach(function (vf) {
+        values[vf.agg + ":" + vf.field] = aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; }));
+      });
+      return { key: combo, values: values };
+    });
+  }
+
+  function resultSetsEqual(a, b) {
+    if (a.length !== b.length) return { equal: false, reason: "count" };
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].key !== b[i].key) return { equal: false, reason: "count" };
+      var ak = Object.keys(a[i].values), bk = Object.keys(b[i].values);
+      if (ak.length !== bk.length) return { equal: false, reason: "values" };
+      for (var j = 0; j < ak.length; j++) {
+        var k = ak[j];
+        if (!(k in b[i].values) || Math.abs(a[i].values[k] - b[i].values[k]) > 0.01) {
+          return { equal: false, reason: "values" };
+        }
+      }
+    }
+    return { equal: true };
+  }
+
+  function checkSolution() {
+    var sol = currentExercise.solution;
+
+    if (zones.values.length === 0) {
+      return { correct: false, messages: ["Es fehlt noch ein Feld im Bereich „Werte“."] };
+    }
+    if (zones.rows.length === 0 && zones.columns.length === 0) {
+      return { correct: false, messages: ["Ziehe mindestens ein Gruppierungsfeld in „Zeilen“ oder „Spalten“."] };
+    }
+
+    if (!sol.rowsColsInterchangeable) {
+      var rowsOk = sameSet(zones.rows, sol.rows);
+      var columnsOk = sameSet(zones.columns, sol.columns);
+      if (!rowsOk || !columnsOk) {
+        return { correct: false, messages: ["Bei dieser Aufgabe ist wichtig, welches Feld in „Zeilen“ und welches in „Spalten“ liegt — prüfe die Zuordnung."] };
+      }
+    }
+
+    if (!sameSet(zones.filter, sol.filter)) {
+      return { correct: false, messages: ["Der Bereich „Filter“ passt noch nicht (evtl. wird er für diese Aufgabe gar nicht gebraucht)."] };
+    }
+
+    var studentFields = zones.rows.concat(zones.columns);
+    var targetFields = sol.rows.concat(sol.columns);
+    var studentResult = computeFlatResultSet(studentFields, zones.values, DATA);
+    var targetResult = computeFlatResultSet(targetFields, sol.values, DATA);
+    var comparison = resultSetsEqual(studentResult, targetResult);
+
+    if (!comparison.equal) {
+      if (comparison.reason === "count") {
+        return { correct: false, messages: ["Deine Gruppierung ergibt eine andere Anzahl an Gruppen als erwartet (" + studentResult.length + " statt " + targetResult.length + "). Prüfe, welche Felder du zur Gruppierung genutzt hast."] };
+      }
+      return { correct: false, messages: ["Die berechneten Werte stimmen noch nicht mit der Musterlösung überein. Prüfe Feld <em>und</em> Aggregation im Bereich „Werte“."] };
+    }
+
+    return { correct: true, messages: ["Richtig! 🎉 Deine Pivot-Tabelle liefert genau das erwartete Ergebnis."] };
   }
 
   document.getElementById("btn-check").addEventListener("click", function () {
-    var sol = currentExercise.solution;
-    var rowsOk = sameSet(zones.rows, sol.rows);
-    var columnsOk = sameSet(zones.columns, sol.columns);
-    var filterOk = sameSet(zones.filter, sol.filter);
-    var valuesOk = sameValues(zones.values, sol.values);
+    var result = checkSolution();
 
     feedbackEl.classList.remove("correct", "incorrect");
-    feedbackEl.classList.add("show");
+    feedbackEl.classList.add("show", result.correct ? "correct" : "incorrect");
 
-    if (rowsOk && columnsOk && filterOk && valuesOk) {
-      feedbackEl.classList.add("correct");
-      feedbackEl.textContent = "Richtig! 🎉 Genau die Pivot-Tabelle, die gesucht war.";
-      return;
+    if (result.correct) {
+      feedbackEl.innerHTML = result.messages[0];
+    } else {
+      feedbackEl.innerHTML = "Noch nicht ganz:<ul><li>" + result.messages.join("</li><li>") + "</li></ul>";
     }
-
-    var problems = [];
-    if (!rowsOk) problems.push("Der Bereich „Zeilen“ passt noch nicht.");
-    if (!columnsOk) problems.push("Der Bereich „Spalten“ passt noch nicht (evtl. wird er für diese Aufgabe gar nicht gebraucht).");
-    if (!filterOk) problems.push("Der Bereich „Filter“ passt noch nicht (evtl. wird er für diese Aufgabe gar nicht gebraucht).");
-    if (!valuesOk) problems.push("Der Bereich „Werte“ passt noch nicht — prüfe Feld <em>und</em> die eingestellte Aggregation.");
-
-    feedbackEl.classList.add("incorrect");
-    feedbackEl.innerHTML = "Noch nicht ganz:<ul><li>" + problems.join("</li><li>") + "</li></ul>";
   });
 
   document.getElementById("btn-reset").addEventListener("click", function () {
