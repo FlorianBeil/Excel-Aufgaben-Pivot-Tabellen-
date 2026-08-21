@@ -71,9 +71,36 @@
     box-shadow: 0 1px 2px rgba(16,124,65,0.06), 0 4px 14px rgba(16,124,65,0.06);
   }
 
+  .task-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
   .task-card h2 { font-size: 1.15rem; margin-bottom: 0.5rem; }
   .task-card p { margin: 0.3rem 0; color: var(--text-primary); }
   .task-card .goal { color: var(--text-muted); font-size: 0.92rem; }
+
+  .exercise-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .exercise-picker select {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 7px;
+    border: 1px solid var(--grid-gray);
+    background: #fff;
+    color: var(--text-primary);
+    min-width: 240px;
+  }
 
   .hints-toggle {
     margin-top: 0.7rem;
@@ -217,10 +244,15 @@
     font-weight: 700;
   }
 
-  .zone-chip .agg-label {
+  .zone-chip .agg-select {
+    font-family: var(--font-body);
     font-size: 0.72rem;
-    color: var(--text-muted);
-    font-weight: 400;
+    color: var(--text-primary);
+    background: var(--header-gray);
+    border: 1px solid var(--grid-gray);
+    border-radius: 5px;
+    padding: 0.1rem 0.3rem;
+    cursor: pointer;
   }
 
   .dropzone {
@@ -351,8 +383,7 @@
   #feedback.show { display: block; }
   #feedback.correct { background: var(--success-green-tint); color: var(--success-green); border: 1px solid var(--success-green); }
   #feedback.incorrect { background: var(--error-red-tint); color: var(--error-red); border: 1px solid var(--error-red); }
-
-  .zone-title-with-hint { display: flex; align-items: center; justify-content: space-between; }
+  #feedback ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
 </style>
 </head>
 <body>
@@ -366,17 +397,17 @@
 
 <main>
   <section class="card task-card">
-    <h2>Aufgabe: Umsatz je Region auswerten</h2>
-    <p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>
-    <p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>
+    <div class="task-card__head">
+      <h2 id="task-title"></h2>
+      <div class="exercise-picker">
+        <label for="exercise-select">Testübung wählen</label>
+        <select id="exercise-select"></select>
+      </div>
+    </div>
+    <div id="task-intro"></div>
     <button class="hints-toggle" id="hints-toggle">Tipps anzeigen</button>
     <div class="hints-box" id="hints-box">
-      <ul>
-        <li>Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong>.</li>
-        <li>Das Feld, das aufsummiert werden soll, gehört in den Bereich <strong>Werte</strong>.</li>
-        <li>Klicke auf ein Feld im Bereich „Werte“, um die Aggregation (Summe / Anzahl / Mittelwert …) umzuschalten.</li>
-        <li>Ein Feld per Klick auf das × wieder aus einem Bereich entfernen.</li>
-      </ul>
+      <ul id="hints-list"></ul>
     </div>
   </section>
 
@@ -500,7 +531,11 @@
   };
 
   var AGGS_NUMERIC = ["Summe", "Anzahl", "Mittelwert", "Min", "Max"];
-  var AGGS_TEXT = ["Anzahl"];
+  var AGGS_OTHER = ["Anzahl"];
+
+  function aggOptionsFor(fieldName) {
+    return FIELDS[fieldName].type === "number" ? AGGS_NUMERIC : AGGS_OTHER;
+  }
 
   function defaultAgg(fieldName) {
     return FIELDS[fieldName].type === "number" ? "Summe" : "Anzahl";
@@ -521,6 +556,51 @@
     if (FIELDS[fieldName].type === "number") return formatCurrency(Math.round(value * 100) / 100);
     return formatNumber(value);
   }
+
+  // ---------- Übungs-Definitionen ----------
+  // Jede Übung hat eine "solution": welche Felder in Zeilen/Spalten/Filter liegen
+  // müssen und welches Wertefeld mit welcher Aggregation in "Werte" gehört.
+  // Zonen-Zuordnung wird hier (noch) exakt geprüft, siehe Schritt 2 für die
+  // flexiblere, ergebnisbasierte Prüfung.
+  var EXERCISES = [
+    {
+      id: "umsatz-je-region",
+      title: "Umsatz je Region auswerten",
+      intro: "<p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>" +
+        '<p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>',
+      hints: [
+        "Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong>.",
+        "Das Feld, das ausgewertet werden soll, gehört in den Bereich <strong>Werte</strong>.",
+        "Klicke auf das Dropdown im „Werte“-Chip, um die Aggregation (Summe / Anzahl / Mittelwert …) zu ändern.",
+        "Ein Feld per Klick auf das × wieder aus einem Bereich entfernen."
+      ],
+      solution: {
+        rows: ["Region"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }]
+      }
+    },
+    {
+      id: "anzahl-verkaeufe-je-region",
+      title: "Anzahl Verkaufstage je Region",
+      intro: "<p>Für wie viele Tage liegt je Region überhaupt ein Umsatz vor? Erstelle eine Pivot-Tabelle, die das je Region auswertet.</p>" +
+        '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Achte genau darauf, was gezählt werden soll.</p>',
+      hints: [
+        "Das gruppierende Feld gehört wieder in den Bereich <strong>Zeilen</strong>.",
+        "Excel wählt bei einem Zahlenfeld im Bereich „Werte“ standardmäßig „Summe“ — hier ist aber nicht die Summe des Umsatzes gefragt, sondern wie viele Tage (Zeilen) es je Region gibt.",
+        "Über das Dropdown im „Werte“-Chip lässt sich die Aggregation von Summe auf eine andere Option umstellen."
+      ],
+      solution: {
+        rows: ["Region"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Anzahl" }]
+      }
+    }
+  ];
+
+  var currentExercise = EXERCISES[0];
 
   // ---------- Zustand ----------
   // zones.rows / columns / filter: array of field names
@@ -560,12 +640,41 @@
     renderAll();
   }
 
-  function cycleAgg(fieldName) {
+  function setAgg(fieldName, agg) {
     var entry = zones.values.find(function (v) { return v.field === fieldName; });
     if (!entry) return;
-    var list = FIELDS[fieldName].type === "number" ? AGGS_NUMERIC : AGGS_TEXT;
-    var idx = list.indexOf(entry.agg);
-    entry.agg = list[(idx + 1) % list.length];
+    entry.agg = agg;
+    renderPivot();
+  }
+
+  // ---------- Rendering: Aufgabentext ----------
+  function renderExercisePicker() {
+    var select = document.getElementById("exercise-select");
+    select.innerHTML = EXERCISES.map(function (ex, idx) {
+      return '<option value="' + idx + '">' + ex.title + "</option>";
+    }).join("");
+    select.value = String(EXERCISES.indexOf(currentExercise));
+    select.addEventListener("change", function () {
+      loadExercise(EXERCISES[Number(select.value)]);
+    });
+  }
+
+  function renderExerciseText() {
+    document.getElementById("task-title").textContent = "Aufgabe: " + currentExercise.title;
+    document.getElementById("task-intro").innerHTML = currentExercise.intro;
+    document.getElementById("hints-list").innerHTML = currentExercise.hints.map(function (h) {
+      return "<li>" + h + "</li>";
+    }).join("");
+  }
+
+  function loadExercise(exercise) {
+    currentExercise = exercise;
+    zones = { filter: [], columns: [], rows: [], values: [] };
+    selectedField = null;
+    document.getElementById("exercise-select").value = String(EXERCISES.indexOf(exercise));
+    feedbackEl.classList.remove("show", "correct", "incorrect");
+    renderExerciseText();
+    renderFieldList();
     renderAll();
   }
 
@@ -605,10 +714,17 @@
     var html = "";
     entries.forEach(function (entry) {
       var fieldName = entry.field;
-      var aggLabel = zoneKey === "values" ? '<span class="agg-label">' + entry.agg + "</span>" : "";
+      var aggControl = "";
+      if (zoneKey === "values") {
+        var options = aggOptionsFor(fieldName).map(function (opt) {
+          var sel = opt === entry.agg ? " selected" : "";
+          return '<option value="' + opt + '"' + sel + ">" + opt + "</option>";
+        }).join("");
+        aggControl = '<select class="agg-select" data-field="' + fieldName + '">' + options + "</select>";
+      }
       html += '<span class="chip zone-chip" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
         '<span class="field-icon">' + FIELDS[fieldName].icon + "</span>" +
-        '<span class="chip-text">' + fieldName + "</span>" + aggLabel +
+        '<span class="chip-text">' + fieldName + "</span>" + aggControl +
         '<button class="chip-remove" type="button" aria-label="Entfernen">×</button></span>';
     });
     el.innerHTML = html;
@@ -622,10 +738,10 @@
     });
 
     if (zoneKey === "values") {
-      el.querySelectorAll(".zone-chip").forEach(function (chip) {
-        chip.addEventListener("click", function (e) {
-          if (e.target.classList.contains("chip-remove")) return;
-          cycleAgg(chip.dataset.field);
+      el.querySelectorAll(".agg-select").forEach(function (select) {
+        select.addEventListener("click", function (e) { e.stopPropagation(); });
+        select.addEventListener("change", function () {
+          setAgg(select.dataset.field, select.value);
         });
       });
     }
@@ -677,7 +793,6 @@
     var rowFields = zones.rows;
     var colFields = zones.columns;
     var valueFields = zones.values;
-    var filterFields = zones.filter;
 
     if (rowFields.length === 0 && colFields.length === 0) {
       container.innerHTML = '<div class="empty-pivot">Ziehe Felder in „Zeilen“ und „Werte“, um eine Pivot-Tabelle zu erzeugen.</div>';
@@ -768,31 +883,46 @@
   }
 
   // ---------- Prüfen ----------
+  // Schritt 1: exakter Abgleich mit der hinterlegten Musterkonfiguration
+  // (Feld -> Zone, plus Aggregation bei "Werte"). Die flexiblere,
+  // ergebnisbasierte Prüfung (Zeilen/Spalten austauschbar) folgt in Schritt 2.
   var feedbackEl = document.getElementById("feedback");
 
+  function sameSet(a, b) {
+    var as = a.slice().sort(), bs = b.slice().sort();
+    return as.length === bs.length && as.every(function (v, i) { return v === bs[i]; });
+  }
+
+  function sameValues(a, b) {
+    var as = a.map(function (v) { return v.field + ":" + v.agg; }).sort();
+    var bs = b.map(function (v) { return v.field + ":" + v.agg; }).sort();
+    return as.length === bs.length && as.every(function (v, i) { return v === bs[i]; });
+  }
+
   document.getElementById("btn-check").addEventListener("click", function () {
-    var rowsOk = zones.rows.length === 1 && zones.rows[0] === "Region";
-    var valuesOk = zones.values.length === 1 && zones.values[0].field === "Umsatz" && zones.values[0].agg === "Summe";
-    var columnsOk = zones.columns.length === 0;
-    var filterOk = zones.filter.length === 0;
+    var sol = currentExercise.solution;
+    var rowsOk = sameSet(zones.rows, sol.rows);
+    var columnsOk = sameSet(zones.columns, sol.columns);
+    var filterOk = sameSet(zones.filter, sol.filter);
+    var valuesOk = sameValues(zones.values, sol.values);
 
     feedbackEl.classList.remove("correct", "incorrect");
     feedbackEl.classList.add("show");
 
-    if (rowsOk && valuesOk && columnsOk && filterOk) {
+    if (rowsOk && columnsOk && filterOk && valuesOk) {
       feedbackEl.classList.add("correct");
-      feedbackEl.textContent = "Richtig! 🎉 Region liegt in Zeilen, Umsatz mit „Summe“ in Werte — genau die Pivot-Tabelle, die gesucht war.";
+      feedbackEl.textContent = "Richtig! 🎉 Genau die Pivot-Tabelle, die gesucht war.";
       return;
     }
 
     var problems = [];
-    if (!rowsOk) problems.push("„Region“ muss (allein) im Bereich Zeilen liegen.");
-    if (!valuesOk) problems.push("„Umsatz“ muss (allein) im Bereich Werte liegen, mit Aggregation „Summe“.");
-    if (!columnsOk) problems.push("Für diese Aufgabe wird der Bereich Spalten nicht benötigt.");
-    if (!filterOk) problems.push("Für diese Aufgabe wird der Bereich Filter nicht benötigt.");
+    if (!rowsOk) problems.push("Der Bereich „Zeilen“ passt noch nicht.");
+    if (!columnsOk) problems.push("Der Bereich „Spalten“ passt noch nicht (evtl. wird er für diese Aufgabe gar nicht gebraucht).");
+    if (!filterOk) problems.push("Der Bereich „Filter“ passt noch nicht (evtl. wird er für diese Aufgabe gar nicht gebraucht).");
+    if (!valuesOk) problems.push("Der Bereich „Werte“ passt noch nicht — prüfe Feld <em>und</em> die eingestellte Aggregation.");
 
     feedbackEl.classList.add("incorrect");
-    feedbackEl.textContent = "Noch nicht ganz: " + problems.join(" ");
+    feedbackEl.innerHTML = "Noch nicht ganz:<ul><li>" + problems.join("</li><li>") + "</li></ul>";
   });
 
   document.getElementById("btn-reset").addEventListener("click", function () {
@@ -809,6 +939,8 @@
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
   });
 
+  renderExercisePicker();
+  renderExerciseText();
   renderFieldList();
   renderAll();
 })();
