@@ -167,7 +167,7 @@
 
   table.sheet-table th, table.sheet-table td {
     border: 1px solid var(--grid-gray); /* Rahmen auf allen vier Seiten statt nur horizontal */
-    padding: 0.32rem 0.6rem;
+    padding: 0.26rem 0.4rem;
     white-space: nowrap;
     background: #fff; /* einheitlicher Zellhintergrund, keine Zebra-Streifen */
   }
@@ -225,7 +225,7 @@
 
   /* ---------- Rechts angedockte PivotTable-Feldliste (echtes Excel-Panel-Vorbild) ---------- */
   .pivot-fields-panel {
-    width: 250px;
+    width: 280px;
     flex-shrink: 0;
     background: #F3F2F1;
     border-left: 1px solid var(--grid-gray);
@@ -261,15 +261,19 @@
     cursor: grab;
     user-select: none;
   }
+  .field-row > span:last-child { min-width: 0; overflow-wrap: break-word; }
   .field-row:active { cursor: grabbing; }
   .field-row:hover { background: rgba(16, 124, 65, 0.08); }
   .field-row.selected { background: var(--excel-green-tint); outline: 1px solid var(--excel-green); }
   .field-row .field-icon { font-size: 0.85rem; }
 
+  /* Einspaltig statt 2x2 gestapelt: jede Zone bekommt die volle Panel-Breite,
+     damit Select/Feldname/Entfernen-Button nie um Platz konkurrieren müssen —
+     robust auch bei längeren Feldnamen als in den aktuellen drei Feldern. */
   .pivot-fields-panel__areas {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
     border-top: 1px solid var(--grid-gray);
     padding-top: 0.6rem;
   }
@@ -285,7 +289,7 @@
   }
 
   .area-box__drop {
-    min-height: 52px;
+    min-height: 40px;
     padding: 0.4rem;
     background: #fff;
   }
@@ -293,6 +297,7 @@
   .pivot-fields-panel .zone-chip {
     padding: 0.24rem 0.4rem;
     font-size: 0.78rem;
+    max-width: 100%;
   }
 
   .chip {
@@ -324,6 +329,14 @@
   .zone-chip {
     background: #fff;
     border: 1px solid var(--excel-green);
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .zone-chip .chip-text {
+    white-space: normal;
+    word-break: break-word;
+    min-width: 0;
   }
 
   .zone-chip button.chip-remove {
@@ -337,9 +350,14 @@
     font-weight: 700;
   }
 
-  .zone-chip--date {
+  /* Zweizeiliger Chip-Aufbau (Kopfzeile + eigene Zeile darunter für Datums-Stufen
+     oder das Aggregations-Dropdown) — verhindert, dass ein select/Steuerelement
+     neben einem Feldnamen um Platz konkurriert und seitlich abgeschnitten wird. */
+  .zone-chip--multiline {
+    display: flex; /* statt inline-flex: nimmt die volle Breite der Zone ein,
+      damit width:100% beim Aggregations-Dropdown eindeutig berechnet werden kann */
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 0.4rem;
     cursor: default;
   }
@@ -348,6 +366,12 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .zone-chip--multiline .agg-select {
+    width: 100%;
   }
 
   .dategroup-pills {
@@ -988,13 +1012,19 @@
           }).join("") + "</div>";
       }
 
+      // Icon + Feldname + Entfernen-Button bilden die Kopfzeile. Steuerelemente,
+      // die selbst schon breit sein können (Aggregations-Dropdown, Datums-
+      // Stufen-Pills), stehen bei "multiline"-Chips auf einer eigenen Zeile
+      // darunter statt daneben — sonst konkurrieren sie im schmalen Feldbereich
+      // um Platz und laufen seitlich über den Kartenrand hinaus.
       var head = '<span class="field-icon">' + FIELDS[fieldName].icon + "</span>" +
-        '<span class="chip-text">' + fieldName + "</span>" + aggControl +
+        '<span class="chip-text">' + fieldName + "</span>" +
         '<button class="chip-remove" type="button" aria-label="Entfernen">×</button>';
 
-      if (isDateField) {
-        html += '<div class="chip zone-chip zone-chip--date" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
-          '<div class="zone-chip__head">' + head + "</div>" + pillsHtml + "</div>";
+      var needsMultiline = isDateField || zoneKey === "values";
+      if (needsMultiline) {
+        html += '<div class="chip zone-chip zone-chip--multiline" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
+          '<div class="zone-chip__head">' + head + "</div>" + pillsHtml + aggControl + "</div>";
       } else {
         html += '<span class="chip zone-chip" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' + head + "</span>";
       }
