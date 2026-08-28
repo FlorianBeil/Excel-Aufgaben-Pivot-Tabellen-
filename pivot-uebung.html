@@ -142,42 +142,81 @@
     margin-bottom: 0.6rem;
   }
 
-  .source-table-wrap {
+  .source-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  /* ---------- Arbeitsblatt-Look: Spaltenbuchstaben, Zeilennummern, volle
+     Gitternetzlinien, scharfe Ecken — gemeinsam für Quelldaten & Pivot-Vorschau ---------- */
+  .sheet-wrap {
     max-height: 340px;
     overflow: auto;
     border: 1px solid var(--grid-gray);
-    border-radius: 8px;
+    border-radius: 0; /* das Raster selbst bleibt eckig, nur die umgebende Karte ist rund */
   }
 
-  table.source-table {
+  table.sheet-table {
     border-collapse: collapse;
     width: 100%;
     font-size: 0.82rem;
     font-family: var(--font-mono);
   }
 
-  table.source-table thead th {
+  table.sheet-table th, table.sheet-table td {
+    border: 1px solid var(--grid-gray); /* Rahmen auf allen vier Seiten statt nur horizontal */
+    padding: 0.32rem 0.6rem;
+    white-space: nowrap;
+    background: #fff; /* einheitlicher Zellhintergrund, keine Zebra-Streifen */
+  }
+
+  table.sheet-table th { text-align: center; }
+  table.sheet-table td { text-align: right; }
+  table.sheet-table .rowlabel { text-align: left; font-weight: 500; }
+
+  /* Spaltenbuchstaben-Kopfzeile: helle, gedämpfte, zentrierte Chrome-Zeile */
+  table.sheet-table .sheet-colheads th {
     position: sticky;
     top: 0;
     background: var(--header-gray);
-    border-bottom: 1px solid var(--grid-gray);
-    padding: 0.4rem 0.6rem;
-    text-align: left;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    z-index: 2;
+  }
+
+  table.sheet-table .sheet-corner {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--header-gray);
+  }
+
+  /* Zeilennummern-Spalte: gleiche gedämpfte Chrome-Optik */
+  table.sheet-table .sheet-rownum {
+    position: sticky;
+    left: 0;
+    background: var(--header-gray);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    z-index: 2;
+  }
+
+  /* Inhaltliche Kopfzeile(n) der jeweiligen Tabelle (Feldnamen bzw. Pivot-Header) */
+  table.sheet-table .sheet-header-row th,
+  table.sheet-table .sheet-header-row td {
+    position: sticky;
+    background: var(--header-gray);
     font-family: var(--font-body);
     font-weight: 600;
-    color: var(--text-muted);
     z-index: 1;
   }
+  table.sheet-table .sheet-header-row .sheet-rownum { z-index: 3; }
 
-  table.source-table td {
-    padding: 0.32rem 0.6rem;
-    border-bottom: 1px solid var(--grid-gray);
-    white-space: nowrap;
+  table.sheet-table tr.total-row td, table.sheet-table tr.total-row th {
+    font-weight: 700;
+    background: var(--excel-green-tint);
   }
-
-  table.source-table tbody tr:nth-child(even) { background: #FBFCFB; }
-
-  .source-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
 
   .builder-and-result {
     display: flex;
@@ -332,43 +371,57 @@
     cursor: pointer;
   }
 
-  .result-table-wrap {
-    overflow: auto;
+  /* ---------- Formelleiste + aktive Zelle (nur Pivot-Vorschau) ---------- */
+  .formula-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
     border: 1px solid var(--grid-gray);
-    border-radius: 8px;
-  }
-
-  table.pivot-table {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: 0.88rem;
-  }
-
-  table.pivot-table th, table.pivot-table td {
-    border: 1px solid var(--grid-gray);
-    padding: 0.4rem 0.7rem;
-    text-align: right;
+    border-bottom: none;
+    background: #fff;
+    padding: 0.35rem 0.6rem;
     font-family: var(--font-mono);
+    font-size: 0.82rem;
   }
 
-  table.pivot-table th {
-    background: var(--header-gray);
-    font-family: var(--font-body);
-    font-weight: 600;
-    text-align: center;
+  .formula-namebox {
+    min-width: 3.2rem;
+    padding: 0.1rem 0.5rem 0.1rem 0;
+    margin-right: 0.2rem;
+    border-right: 1px solid var(--grid-gray);
     color: var(--text-primary);
+    font-weight: 600;
   }
 
-  table.pivot-table td.rowlabel, table.pivot-table th.rowlabel {
-    text-align: left;
-    font-family: var(--font-body);
-    font-weight: 500;
-    background: #FBFCFB;
-  }
-
-  table.pivot-table tr.total-row td, table.pivot-table tr.total-row th {
+  .formula-fx {
+    color: var(--excel-green-dark);
+    font-style: italic;
     font-weight: 700;
-    background: var(--excel-green-tint);
+    font-size: 0.9rem;
+  }
+
+  .formula-text {
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+
+  .sheet-cell--value { cursor: pointer; }
+
+  .sheet-cell--active {
+    outline: 2px solid var(--excel-green);
+    outline-offset: -2px;
+    position: relative;
+  }
+
+  .sheet-cell--active::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 6px;
+    height: 6px;
+    background: var(--excel-green);
   }
 
   .empty-pivot {
@@ -451,12 +504,7 @@
   <div class="workspace">
     <section class="card source-panel">
       <h3>Quelldaten (2026)</h3>
-      <div class="source-table-wrap">
-        <table class="source-table">
-          <thead><tr><th>Datum</th><th>Region</th><th>Umsatz</th></tr></thead>
-          <tbody id="source-tbody"></tbody>
-        </table>
-      </div>
+      <div class="sheet-wrap" id="source-table-wrap"></div>
       <p class="source-meta" id="source-meta"></p>
     </section>
 
@@ -550,14 +598,78 @@
     return n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   }
 
-  // ---------- Quelltabelle rendern ----------
-  var tbody = document.getElementById("source-tbody");
-  var rowsHtml = "";
-  for (var r = 0; r < DATA.length; r++) {
-    var row = DATA[r];
-    rowsHtml += "<tr><td>" + formatDate(row.Datum) + "</td><td>" + row.Region + "</td><td>" + formatCurrency(row.Umsatz) + "</td></tr>";
+  // ---------- Arbeitsblatt-Chrome (Spaltenbuchstaben, Zeilennummern, Gitter) ----------
+  // Baut aus "logischen Zeilen" (Arrays von Zell-Deskriptoren {html, colspan,
+  // header, cls, attrs}) eine Tabelle im Look eines rohen, unformatierten
+  // Excel-Arbeitsblatts: Spaltenbuchstaben oben, Zeilennummern links,
+  // durchgehende Gitternetzlinien. Zeilen mit row.sticky=true (die
+  // inhaltlichen Kopfzeilen der jeweiligen Tabelle) bleiben beim Scrollen
+  // zusammen mit der Buchstaben-Zeile oben fixiert. Wird sowohl für die
+  // Quelldaten- als auch die Pivot-Vorschau-Tabelle verwendet.
+  function columnLetter(n) {
+    var s = "";
+    while (n > 0) {
+      var rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
   }
-  tbody.innerHTML = rowsHtml;
+
+  function renderSheetTable(rows) {
+    var totalCols = 0;
+    rows.forEach(function (row) {
+      var cols = row.reduce(function (sum, cell) { return sum + (cell.colspan || 1); }, 0);
+      if (cols > totalCols) totalCols = cols;
+    });
+
+    var ROW_H = 28; // px, angenommene Zeilenhöhe zum Stapeln fixierter Kopfzeilen
+    var stickyDepth = 1; // Slot 0 ist die Spaltenbuchstaben-Zeile selbst
+
+    var html = '<table class="sheet-table"><thead><tr class="sheet-colheads"><th class="sheet-corner" style="top:0px;left:0px"></th>';
+    for (var c = 1; c <= totalCols; c++) html += "<th>" + columnLetter(c) + "</th>";
+    html += "</tr></thead><tbody>";
+
+    rows.forEach(function (row, i) {
+      var topStyle = "";
+      if (row.sticky) {
+        topStyle = ' style="top:' + (stickyDepth * ROW_H) + 'px"';
+        stickyDepth++;
+      }
+      var trClasses = [];
+      if (row.sticky) trClasses.push("sheet-header-row");
+      if (row.cls) trClasses.push(row.cls);
+      html += "<tr" + (trClasses.length ? ' class="' + trClasses.join(" ") + '"' : "") + '><th class="sheet-rownum"' + topStyle + ">" + (i + 1) + "</th>";
+      row.forEach(function (cell) {
+        var tag = cell.header ? "th" : "td";
+        var cls = cell.cls ? ' class="' + cell.cls + '"' : "";
+        var colspan = cell.colspan && cell.colspan > 1 ? ' colspan="' + cell.colspan + '"' : "";
+        html += "<" + tag + cls + colspan + (cell.attrs || "") + topStyle + ">" + cell.html + "</" + tag + ">";
+      });
+      html += "</tr>";
+    });
+
+    html += "</tbody></table>";
+    return html;
+  }
+
+  // ---------- Quelltabelle rendern ----------
+  var sourceRows = [];
+  var sourceHeaderRow = [
+    { header: true, cls: "rowlabel", html: "Datum" },
+    { header: true, cls: "rowlabel", html: "Region" },
+    { header: true, html: "Umsatz" }
+  ];
+  sourceHeaderRow.sticky = true;
+  sourceRows.push(sourceHeaderRow);
+  DATA.forEach(function (row) {
+    sourceRows.push([
+      { cls: "rowlabel", html: formatDate(row.Datum) },
+      { cls: "rowlabel", html: row.Region },
+      { html: formatCurrency(row.Umsatz) }
+    ]);
+  });
+  document.getElementById("source-table-wrap").innerHTML = renderSheetTable(sourceRows);
   document.getElementById("source-meta").textContent = DATA.length + " Zeilen · Zeitraum 01.01.2026 – 31.12.2026";
 
   // ---------- Feld-Definitionen ----------
@@ -922,13 +1034,20 @@
   // Eindeutige Gruppierungs-Kombinationen für ein Set von Feldern, chronologisch
   // bzw. alphabetisch (de) sortiert je nach Feldtyp.
   function computeGroupCombos(fields, data, levelsMap) {
-    if (fields.length === 0) return [{ key: "", label: "Gesamt", sortParts: [] }];
+    if (fields.length === 0) return [{ key: "", label: "Gesamt", sortParts: [], parts: [] }];
     var map = new Map();
     data.forEach(function (row) {
       var vals = fields.map(function (f) { return fieldValue(f, row, levelsMap); });
       var key = vals.map(function (v) { return v.sort; }).join(" | ");
       if (!map.has(key)) {
-        map.set(key, { key: key, label: vals.map(function (v) { return v.label; }).join(" / "), sortParts: vals.map(function (v) { return v.sort; }) });
+        map.set(key, {
+          key: key,
+          label: vals.map(function (v) { return v.label; }).join(" / "),
+          sortParts: vals.map(function (v) { return v.sort; }),
+          // Feld+Anzeigewert je Gruppierungsfeld, unabhängig von Zeilen/Spalten-Zuordnung —
+          // wird für die GETPIVOTDATA-artige Formel in der Formelleiste gebraucht.
+          parts: fields.map(function (f, idx) { return { field: f, label: vals[idx].label }; })
+        });
       }
     });
     var combos = Array.from(map.values());
@@ -957,6 +1076,29 @@
     return fieldName + " (" + ordered.map(function (l) { return DATE_LEVEL_LABELS[l]; }).join("/") + ")";
   }
 
+  var AGG_FUNC_NAME = { Summe: "SUMME", Anzahl: "ANZAHL", Mittelwert: "MITTELWERT", Min: "MIN", Max: "MAX" };
+
+  // Formel für eine Zelle in der Gesamt-Zeile: die entspricht tatsächlich der
+  // im Raster sichtbaren Summe/Anzahl/... der Datenzeilen in derselben Spalte.
+  function totalColumnFormula(agg, colLetter, firstRow, lastRow) {
+    return "=" + AGG_FUNC_NAME[agg] + "(" + colLetter + firstRow + ":" + colLetter + lastRow + ")";
+  }
+
+  // Formel für eine normale Pivot-Datenzelle: eine PivotTable liefert selbst
+  // keine sichtbare Formel (nur den berechneten Wert), aber genau dafür gibt
+  // es GETPIVOTDATA — die Formel, die Excel einfügt, wenn man von außen auf
+  // eine Pivot-Zelle verweist. Didaktisch die treffendste Darstellung dessen,
+  // "was diese Zelle bedeutet".
+  function pivotDataFormula(fieldName, filterParts) {
+    var s = '=GETPIVOTDATA("' + fieldName + '";$A$3';
+    filterParts.forEach(function (p) { s += ';"' + p.field + '";"' + p.label + '"'; });
+    return s + ")";
+  }
+
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  }
+
   function renderPivot() {
     var container = document.getElementById("pivot-result");
     var rowFields = zones.rows;
@@ -978,67 +1120,102 @@
     var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
     var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
-    var html = '<div class="result-table-wrap"><table class="pivot-table"><thead>';
-
-    // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
-    html += "<tr><th class=\"rowlabel\">" + (rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "") + "</th>";
+    // Physische Spalten (ohne die Zeilenbeschriftungs-Spalte A) in exakt der
+    // Reihenfolge, in der sie in jeder Datenzeile erscheinen — legt fest,
+    // welcher Spaltenbuchstabe zu welcher Kombination/welchem Wertefeld gehört.
+    var columnMeta = [];
     colCombos.forEach(function (cc) {
-      html += '<th colspan="' + valueFields.length + '">' + cc.label + "</th>";
-    });
-    if (colFields.length) html += '<th colspan="' + valueFields.length + '">Gesamt</th>';
-    html += "</tr>";
-
-    // Kopfzeile 2: Wertefeld/Aggregation je Spalte
-    html += "<tr><th class=\"rowlabel\"></th>";
-    colCombos.forEach(function () {
-      valueFields.forEach(function (vf) {
-        html += "<th>" + vf.agg + " von " + vf.field + "</th>";
-      });
+      valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
     });
     if (colFields.length) {
-      valueFields.forEach(function (vf) {
-        html += "<th>" + vf.agg + " von " + vf.field + "</th>";
-      });
+      valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
     }
-    html += "</tr></thead><tbody>";
 
-    rowCombos.forEach(function (rc) {
-      html += "<tr><td class=\"rowlabel\">" + rc.label + "</td>";
+    var firstDataRow = 3; // Arbeitsblatt-Zeile 1+2 sind die beiden Kopfzeilen
+    var lastDataRow = 2 + rowCombos.length;
+    var totalRowNum = lastDataRow + 1;
+
+    var rows = [];
+
+    // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
+    var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+    colCombos.forEach(function (cc) {
+      headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
+    });
+    if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
+    headerRow1.sticky = true;
+    rows.push(headerRow1);
+
+    // Kopfzeile 2: Wertefeld/Aggregation je Spalte
+    var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
+    columnMeta.forEach(function (cm) {
+      headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
+    });
+    headerRow2.sticky = true;
+    rows.push(headerRow2);
+
+    // Datenzeilen
+    rowCombos.forEach(function (rc, rIdx) {
+      var worksheetRow = firstDataRow + rIdx;
       var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
-      colCombos.forEach(function (cc) {
-        var cellData = rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cc, dateGroupLevels); });
-        valueFields.forEach(function (vf) {
-          var val = aggregate(vf.agg, cellData.map(function (d) { return d[vf.field]; }));
-          html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+      var dataRow = [{ cls: "rowlabel", html: rc.label }];
+      columnMeta.forEach(function (cm, cIdx) {
+        var colLetter = columnLetter(cIdx + 2);
+        var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
+        var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
+        var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
+        var formula = pivotDataFormula(cm.vf.field, filterParts);
+        dataRow.push({
+          html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+          cls: "sheet-cell--value",
+          attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
         });
       });
-      if (colFields.length) {
-        valueFields.forEach(function (vf) {
-          var val = aggregate(vf.agg, rowMatched.map(function (d) { return d[vf.field]; }));
-          html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
-        });
-      }
-      html += "</tr>";
+      rows.push(dataRow);
     });
 
     // Gesamtsumme-Zeile
-    html += '<tr class="total-row"><td class="rowlabel">Gesamt</td>';
-    colCombos.forEach(function (cc) {
-      var colMatched = data.filter(function (d) { return rowMatchesCombo(d, colFields, cc, dateGroupLevels); });
-      valueFields.forEach(function (vf) {
-        var val = aggregate(vf.agg, colMatched.map(function (d) { return d[vf.field]; }));
-        html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
+    var totalRow = [{ cls: "rowlabel", html: "Gesamt" }];
+    columnMeta.forEach(function (cm, cIdx) {
+      var colLetter = columnLetter(cIdx + 2);
+      var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
+      var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
+      var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
+      totalRow.push({
+        html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+        cls: "sheet-cell--value",
+        attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
       });
     });
-    if (colFields.length) {
-      valueFields.forEach(function (vf) {
-        var val = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
-        html += "<td>" + formatAggResult(vf.agg, vf.field, val) + "</td>";
-      });
-    }
-    html += "</tr></tbody></table></div>";
+    totalRow.cls = "total-row";
+    rows.push(totalRow);
 
-    container.innerHTML = html;
+    container.innerHTML =
+      '<div class="formula-bar">' +
+        '<span class="formula-namebox" id="formula-namebox"></span>' +
+        '<span class="formula-fx" aria-hidden="true">𝑓x</span>' +
+        '<span class="formula-text" id="formula-text"></span>' +
+      "</div>" +
+      '<div class="sheet-wrap">' + renderSheetTable(rows) + "</div>";
+
+    // Aktive Zelle: standardmäßig die Gesamtsumme unten rechts — didaktisch
+    // der interessanteste Fall. Klick auf eine andere Datenzelle aktualisiert
+    // Namensfeld und Formel entsprechend dieser Zelle.
+    function activateCell(cell) {
+      var prevActive = container.querySelector(".sheet-cell--active");
+      if (prevActive) prevActive.classList.remove("sheet-cell--active");
+      cell.classList.add("sheet-cell--active");
+      document.getElementById("formula-namebox").textContent = cell.dataset.addr;
+      document.getElementById("formula-text").textContent = cell.dataset.formula;
+    }
+
+    var valueCells = container.querySelectorAll(".sheet-cell--value");
+    if (valueCells.length) activateCell(valueCells[valueCells.length - 1]);
+
+    container.querySelector(".sheet-wrap").addEventListener("click", function (e) {
+      var cell = e.target.closest(".sheet-cell--value");
+      if (cell) activateCell(cell);
+    });
   }
 
   function renderAll() {
