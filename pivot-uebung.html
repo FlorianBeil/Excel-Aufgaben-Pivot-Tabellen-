@@ -282,30 +282,30 @@
   .pivot-fields-panel__areas {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.25rem;
     border-top: 1px solid var(--grid-gray);
-    padding-top: 0.45rem;
+    padding-top: 0.35rem;
   }
 
   .area-box__label {
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--text-muted);
     font-weight: 700;
     display: block;
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.12rem;
   }
 
   .area-box__drop {
-    min-height: 34px;
-    padding: 0.3rem;
+    min-height: 22px;
+    padding: 0.18rem;
     background: #fff;
   }
 
   .pivot-fields-panel .zone-chip {
-    padding: 0.24rem 0.4rem;
-    font-size: 0.78rem;
+    padding: 0.16rem 0.35rem;
+    font-size: 0.76rem;
     max-width: 100%;
   }
 
@@ -367,8 +367,7 @@
       damit width:100% beim Aggregations-Dropdown eindeutig berechnet werden kann */
     flex-direction: column;
     align-items: stretch;
-    gap: 0.4rem;
-    cursor: default;
+    gap: 0.25rem;
   }
 
   .zone-chip__head {
@@ -891,6 +890,7 @@
   // zones.values: array of { field, agg }
   var zones = { filter: [], columns: [], rows: [], values: [] };
   var selectedField = null; // field name currently selected via click (mobile fallback)
+  var selectedFieldZone = null; // null = ausgewählt aus der Feldliste; sonst die Zone, aus der ein bereits platziertes Feld zum Verschieben ausgewählt wurde
 
   var fieldListEl = document.getElementById("field-list");
   var zoneEls = {
@@ -905,22 +905,42 @@
     return zones[zoneKey].indexOf(fieldName) !== -1;
   }
 
-  function addFieldToZone(zoneKey, fieldName) {
+  // Reine Zustandsänderungen ohne Re-Render, damit ein Verschieben (Entfernen +
+  // Hinzufügen) als ein einziger Render-Durchlauf passiert statt zwei.
+  function addToZoneState(zoneKey, fieldName) {
     if (fieldInZone(zoneKey, fieldName)) return;
     if (zoneKey === "values") {
       zones.values.push({ field: fieldName, agg: defaultAgg(fieldName) });
     } else {
       zones[zoneKey].push(fieldName);
     }
-    renderAll();
   }
 
-  function removeFieldFromZone(zoneKey, fieldName) {
+  function removeFromZoneState(zoneKey, fieldName) {
     if (zoneKey === "values") {
       zones.values = zones.values.filter(function (v) { return v.field !== fieldName; });
     } else {
       zones[zoneKey] = zones[zoneKey].filter(function (f) { return f !== fieldName; });
     }
+  }
+
+  function addFieldToZone(zoneKey, fieldName) {
+    addToZoneState(zoneKey, fieldName);
+    renderAll();
+  }
+
+  function removeFieldFromZone(zoneKey, fieldName) {
+    removeFromZoneState(zoneKey, fieldName);
+    renderAll();
+  }
+
+  // Verschiebt ein bereits platziertes Feld von einer Zone in eine andere
+  // (per Drag & Drop oder per Klick-Auswahl + Klick auf die Zielzone).
+  // fromZone ist null, wenn das Feld frisch aus der Feldliste kommt.
+  function moveFieldToZone(fieldName, fromZone, toZone) {
+    if (fromZone === toZone) return;
+    if (fromZone) removeFromZoneState(fromZone, fieldName);
+    addToZoneState(toZone, fieldName);
     renderAll();
   }
 
@@ -956,6 +976,7 @@
     zones = { filter: [], columns: [], rows: [], values: [] };
     dateGroupLevels = {};
     selectedField = null;
+    selectedFieldZone = null;
     document.getElementById("exercise-select").value = String(EXERCISES.indexOf(exercise));
     feedbackEl.classList.remove("show", "correct", "incorrect");
     renderExerciseText();
@@ -967,7 +988,10 @@
   function renderFieldList() {
     var html = "";
     Object.keys(FIELDS).forEach(function (name) {
-      var sel = selectedField === name ? " selected" : "";
+      // Nur markieren, wenn die Auswahl auch wirklich aus der Feldliste stammt —
+      // ein zum Verschieben ausgewähltes Feld aus einer Zone zeigt seine
+      // Markierung stattdessen dort (siehe renderZone).
+      var sel = (selectedField === name && selectedFieldZone === null) ? " selected" : "";
       html += '<div class="field-row' + sel + '" draggable="true" data-field="' + name + '">' +
         '<span class="field-icon">' + FIELDS[name].icon + "</span><span>" + name + "</span></div>";
     });
@@ -980,8 +1004,14 @@
       });
       row.addEventListener("dragend", function () { row.classList.remove("dragging"); });
       row.addEventListener("click", function () {
-        selectedField = selectedField === row.dataset.field ? null : row.dataset.field;
+        if (selectedField === row.dataset.field && selectedFieldZone === null) {
+          selectedField = null;
+        } else {
+          selectedField = row.dataset.field;
+          selectedFieldZone = null;
+        }
         renderFieldList();
+        renderZones(); // löscht ggf. die Markierung eines zuvor zum Verschieben ausgewählten Zonen-Chips
       });
     });
   }
@@ -1030,12 +1060,18 @@
         '<span class="chip-text">' + fieldName + "</span>" +
         '<button class="chip-remove" type="button" aria-label="Entfernen">×</button>';
 
+      // Ein bereits platziertes Feld ist selbst wieder draggable (data-zone
+      // verrät beim Drop in eine andere Zone, woher es kommt, siehe unten) und
+      // per Klick auswählbar, um es per Klick auf eine andere Zone zu verschieben.
+      var isSelectedForMove = selectedField === fieldName && selectedFieldZone === zoneKey;
+      var selCls = isSelectedForMove ? " selected" : "";
+
       var needsMultiline = isDateField || zoneKey === "values";
       if (needsMultiline) {
-        html += '<div class="chip zone-chip zone-chip--multiline" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
+        html += '<div class="chip zone-chip zone-chip--multiline' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
           '<div class="zone-chip__head">' + head + "</div>" + pillsHtml + aggControl + "</div>";
       } else {
-        html += '<span class="chip zone-chip" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' + head + "</span>";
+        html += '<span class="chip zone-chip' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' + head + "</span>";
       }
     });
     el.innerHTML = html;
@@ -1045,6 +1081,32 @@
         e.stopPropagation();
         var chip = btn.closest(".zone-chip");
         removeFieldFromZone(chip.dataset.zone, chip.dataset.field);
+      });
+    });
+
+    el.querySelectorAll(".zone-chip").forEach(function (chip) {
+      chip.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", chip.dataset.field);
+        e.dataTransfer.setData("application/x-source-zone", chip.dataset.zone);
+        chip.classList.add("dragging");
+      });
+      chip.addEventListener("dragend", function () { chip.classList.remove("dragging"); });
+      chip.addEventListener("click", function (e) {
+        // Klicks auf Entfernen-Button, Aggregations-Dropdown oder Datums-Pills
+        // werden von deren eigenen Handlern behandelt (stopPropagation) bzw.
+        // sollen hier keine Verschiebe-Auswahl auslösen.
+        if (e.target.closest(".chip-remove") || e.target.closest(".agg-select") || e.target.closest(".dategroup-pills")) return;
+        var fieldName = chip.dataset.field;
+        var zone = chip.dataset.zone;
+        if (selectedField === fieldName && selectedFieldZone === zone) {
+          selectedField = null;
+          selectedFieldZone = null;
+        } else {
+          selectedField = fieldName;
+          selectedFieldZone = zone;
+        }
+        renderFieldList();
+        renderZones();
       });
     });
 
@@ -1095,14 +1157,20 @@
       e.preventDefault();
       dropEl.classList.remove("dragover");
       var fieldName = e.dataTransfer.getData("text/plain");
-      if (fieldName && FIELDS[fieldName]) addFieldToZone(zoneKey, fieldName);
+      if (!fieldName || !FIELDS[fieldName]) return;
+      // Kommt der Drag von einem bereits platzierten Zonen-Chip (statt aus der
+      // Feldliste), steht hier die Ursprungszone drin — das Feld wird dann
+      // verschoben statt dupliziert.
+      var sourceZone = e.dataTransfer.getData("application/x-source-zone") || null;
+      moveFieldToZone(fieldName, sourceZone, zoneKey);
     });
 
     dropEl.addEventListener("click", function (e) {
       if (e.target.closest(".zone-chip")) return; // handled separately
       if (selectedField) {
-        addFieldToZone(zoneKey, selectedField);
+        moveFieldToZone(selectedField, selectedFieldZone, zoneKey);
         selectedField = null;
+        selectedFieldZone = null;
         renderFieldList();
       }
     });
@@ -1439,6 +1507,7 @@
     zones = { filter: [], columns: [], rows: [], values: [] };
     dateGroupLevels = {};
     selectedField = null;
+    selectedFieldZone = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
     renderFieldList();
     renderAll();
