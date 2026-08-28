@@ -12,6 +12,7 @@
     --excel-green: #107C41;
     --excel-green-dark: #0B5C30;
     --excel-green-tint: #E9F6EE;
+    --excel-blue-tint: #DDEBF7; /* helles Blau, wie Excels Standard-PivotTable-Formatvorlage für Kopf-/Summenzeilen */
     --grid-gray: #D7DCE1;
     --header-gray: #F2F4F6;
     --error-red: #D92D20;
@@ -276,7 +277,15 @@
 
   table.sheet-table .cell-total {
     font-weight: 700;
-    background: var(--excel-green-tint);
+    background: var(--excel-blue-tint);
+  }
+
+  /* Kopfzeile(n) der Pivot-Ausgabe selbst (Zeilen-/Spaltenbeschriftung,
+     "Agg von Feld") — bewusst per eigener Zeilen-Klasse abgegrenzt von der
+     Quelldaten-Kopfzeile und der Filterzeile, die ihr gedämpftes Grau behalten. */
+  table.sheet-table tr.pivot-header-row th,
+  table.sheet-table tr.pivot-header-row td {
+    background: var(--excel-blue-tint);
   }
 
   /* ---------- Rechts angedockte PivotTable-Feldliste (echtes Excel-Panel-Vorbild) ---------- */
@@ -810,6 +819,8 @@
       if (pv) row = row.concat(pv);
       else if (pvColCount) row.push({ colspan: pvColCount, html: "" });
       if ((src && src.sticky) || (pv && pv.sticky)) row.sticky = true;
+      if (pv && pv.cls) row.cls = pv.cls;
+      else if (src && src.cls) row.cls = src.cls;
       merged.push(row);
     }
     return merged;
@@ -1439,6 +1450,7 @@
         });
         if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
         headerRow1.sticky = true;
+        headerRow1.cls = "pivot-header-row";
         pivotRows.push(headerRow1);
 
         // Kopfzeile 2: Wertefeld/Aggregation je Spalte
@@ -1447,6 +1459,7 @@
           headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
         });
         headerRow2.sticky = true;
+        headerRow2.cls = "pivot-header-row";
         pivotRows.push(headerRow2);
 
         // Datenzeilen
@@ -1495,6 +1508,7 @@
         var skHeaderRow = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
         skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, html: cc.label }); });
         skHeaderRow.sticky = true;
+        skHeaderRow.cls = "pivot-header-row";
         pivotRows.push(skHeaderRow);
 
         if (rowFields.length) {
