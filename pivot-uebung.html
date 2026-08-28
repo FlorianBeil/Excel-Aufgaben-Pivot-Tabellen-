@@ -126,31 +126,36 @@
   .hints-box.open { display: block; }
   .hints-box ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
 
-  .workspace {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 1.25rem;
-    align-items: start;
+  /* ---------- Excel-Fenster: EIN Tabellenblatt (Quelldaten + Pivot-Ausgabe
+     nebeneinander im selben Raster) plus rechts angedockte PivotTable-Feldliste ---------- */
+  .excel-window { padding: 0; overflow: hidden; }
+
+  .excel-body {
+    display: flex;
+    align-items: stretch;
   }
 
   @media (max-width: 860px) {
-    .workspace { grid-template-columns: 1fr; }
+    .excel-body { flex-direction: column; }
   }
 
-  .source-panel h3, .builder-panel h3, .result-panel h3 {
-    font-size: 0.95rem;
-    margin-bottom: 0.6rem;
+  .sheet-caption {
+    margin: 0;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
   }
-
-  .source-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
 
   /* ---------- Arbeitsblatt-Look: Spaltenbuchstaben, Zeilennummern, volle
-     Gitternetzlinien, scharfe Ecken — gemeinsam für Quelldaten & Pivot-Vorschau ---------- */
-  .sheet-wrap {
-    max-height: 340px;
+     Gitternetzlinien, scharfe Ecken ---------- */
+  .excel-body .sheet-wrap {
+    flex: 1;
+    min-width: 0;
+    max-height: 460px;
     overflow: auto;
-    border: 1px solid var(--grid-gray);
-    border-radius: 0; /* das Raster selbst bleibt eckig, nur die umgebende Karte ist rund */
+    border: none;
+    border-radius: 0;
   }
 
   table.sheet-table {
@@ -213,32 +218,81 @@
   }
   table.sheet-table .sheet-header-row .sheet-rownum { z-index: 3; }
 
-  table.sheet-table tr.total-row td, table.sheet-table tr.total-row th {
+  table.sheet-table .cell-total {
     font-weight: 700;
     background: var(--excel-green-tint);
   }
 
-  .builder-and-result {
+  /* ---------- Rechts angedockte PivotTable-Feldliste (echtes Excel-Panel-Vorbild) ---------- */
+  .pivot-fields-panel {
+    width: 250px;
+    flex-shrink: 0;
+    background: #F3F2F1;
+    border-left: 1px solid var(--grid-gray);
+    padding: 0.75rem 0.75rem 0.9rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.65rem;
+    max-height: 460px;
+    overflow-y: auto;
   }
 
-  .builder-grid {
+  .pivot-fields-panel__title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--grid-gray);
+  }
+
+  .pivot-fields-panel__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.84rem;
+    cursor: grab;
+    user-select: none;
+  }
+  .field-row:active { cursor: grabbing; }
+  .field-row:hover { background: rgba(16, 124, 65, 0.08); }
+  .field-row.selected { background: var(--excel-green-tint); outline: 1px solid var(--excel-green); }
+  .field-row .field-icon { font-size: 0.85rem; }
+
+  .pivot-fields-panel__areas {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-    gap: 0.7rem;
-  }
-
-  .field-source {
-    margin-bottom: 0.9rem;
-  }
-
-  .field-chip-row {
-    display: flex;
-    flex-wrap: wrap;
     gap: 0.5rem;
+    border-top: 1px solid var(--grid-gray);
+    padding-top: 0.6rem;
+  }
+
+  .area-box__label {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+
+  .area-box__drop {
+    min-height: 52px;
+    padding: 0.4rem;
+    background: #fff;
+  }
+
+  .pivot-fields-panel .zone-chip {
+    padding: 0.24rem 0.4rem;
+    font-size: 0.78rem;
   }
 
   .chip {
@@ -376,8 +430,7 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    border: 1px solid var(--grid-gray);
-    border-bottom: none;
+    border-bottom: 1px solid var(--grid-gray);
     background: #fff;
     padding: 0.35rem 0.6rem;
     font-family: var(--font-mono);
@@ -424,13 +477,12 @@
     background: var(--excel-green);
   }
 
-  .empty-pivot {
-    padding: 1.6rem;
-    text-align: center;
+  table.sheet-table .pivot-placeholder {
+    text-align: left;
+    font-style: italic;
     color: var(--text-muted);
-    font-size: 0.9rem;
-    border: 1.5px dashed var(--grid-gray);
-    border-radius: 8px;
+    background: #fff;
+    white-space: normal;
   }
 
   .actions {
@@ -501,46 +553,39 @@
     </div>
   </section>
 
-  <div class="workspace">
-    <section class="card source-panel">
-      <h3>Quelldaten (2026)</h3>
-      <div class="sheet-wrap" id="source-table-wrap"></div>
-      <p class="source-meta" id="source-meta"></p>
-    </section>
-
-    <div class="builder-and-result">
-      <section class="card builder-panel">
-        <div class="field-source">
-          <h3>Verfügbare Felder</h3>
-          <div class="field-chip-row" id="field-list"></div>
-        </div>
-
-        <div class="builder-grid">
-          <div class="dropzone selectable" data-zone="filter">
-            <span class="zone-label">Filter</span>
-            <div class="zone-chips" id="zone-filter"><span class="zone-placeholder">Felder hierher ziehen</span></div>
-          </div>
-          <div class="dropzone selectable" data-zone="columns">
-            <span class="zone-label">Spalten</span>
-            <div class="zone-chips" id="zone-columns"><span class="zone-placeholder">Felder hierher ziehen</span></div>
-          </div>
-          <div class="dropzone selectable" data-zone="rows">
-            <span class="zone-label">Zeilen</span>
-            <div class="zone-chips" id="zone-rows"><span class="zone-placeholder">Felder hierher ziehen</span></div>
-          </div>
-          <div class="dropzone selectable" data-zone="values">
-            <span class="zone-label">Werte</span>
-            <div class="zone-chips" id="zone-values"><span class="zone-placeholder">Felder hierher ziehen</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card result-panel">
-        <h3>Pivot-Tabelle (Vorschau)</h3>
-        <div id="pivot-result"></div>
-      </section>
+  <section class="card excel-window">
+    <div class="formula-bar">
+      <span class="formula-namebox" id="formula-namebox"></span>
+      <span class="formula-fx" aria-hidden="true">𝑓x</span>
+      <span class="formula-text" id="formula-text"></span>
     </div>
-  </div>
+    <div class="excel-body">
+      <div class="sheet-wrap" id="sheet-canvas"></div>
+      <aside class="pivot-fields-panel">
+        <h4 class="pivot-fields-panel__title">PivotTable-Felder</h4>
+        <div class="pivot-fields-panel__list" id="field-list"></div>
+        <div class="pivot-fields-panel__areas">
+          <div class="area-box" data-zone="filter">
+            <span class="area-box__label">Filter</span>
+            <div class="area-box__drop dropzone selectable" id="zone-filter"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="area-box" data-zone="columns">
+            <span class="area-box__label">Spalten</span>
+            <div class="area-box__drop dropzone selectable" id="zone-columns"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="area-box" data-zone="rows">
+            <span class="area-box__label">Zeilen</span>
+            <div class="area-box__drop dropzone selectable" id="zone-rows"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+          <div class="area-box" data-zone="values">
+            <span class="area-box__label">Werte</span>
+            <div class="area-box__drop dropzone selectable" id="zone-values"><span class="zone-placeholder">Felder hierher ziehen</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <p class="sheet-caption" id="sheet-caption"></p>
+  </section>
 
   <div class="actions">
     <button class="btn btn-primary" id="btn-check">Prüfen</button>
@@ -653,7 +698,11 @@
     return html;
   }
 
-  // ---------- Quelltabelle rendern ----------
+  // ---------- Quelldaten als Zeilen aufbereiten (Spalten A–C des gemeinsamen Blatts) ----------
+  var SOURCE_COL_COUNT = 3; // Datum, Region, Umsatz
+  var GAP_COLS = 1; // eine leere Spalte zwischen Quelldaten und Pivot-Ausgabe, wie in echten Excel-Blättern üblich
+  var PIVOT_COL_OFFSET = SOURCE_COL_COUNT + GAP_COLS; // physische Spalten, ab denen die Pivot-Ausgabe beginnt
+
   var sourceRows = [];
   var sourceHeaderRow = [
     { header: true, cls: "rowlabel", html: "Datum" },
@@ -669,8 +718,26 @@
       { html: formatCurrency(row.Umsatz) }
     ]);
   });
-  document.getElementById("source-table-wrap").innerHTML = renderSheetTable(sourceRows);
-  document.getElementById("source-meta").textContent = DATA.length + " Zeilen · Zeitraum 01.01.2026 – 31.12.2026";
+
+  // Fügt Quelldaten- und Pivot-Zeilen spaltenweise zu EINEM Tabellenblatt
+  // zusammen (gemeinsame Zeilennummerierung, eine Lückenspalte dazwischen) —
+  // genau das Bild, das der Nutzer beim Arbeiten in Excel hätte.
+  function mergeIntoSheet(srcRows, pvRows, pvColCount) {
+    var maxRows = Math.max(srcRows.length, pvRows.length);
+    var merged = [];
+    for (var i = 0; i < maxRows; i++) {
+      var row = [];
+      var src = srcRows[i];
+      row = row.concat(src || [{ colspan: SOURCE_COL_COUNT, html: "" }]);
+      for (var g = 0; g < GAP_COLS; g++) row.push({ html: "" });
+      var pv = pvRows[i];
+      if (pv) row = row.concat(pv);
+      else if (pvColCount) row.push({ colspan: pvColCount, html: "" });
+      if ((src && src.sticky) || (pv && pv.sticky)) row.sticky = true;
+      merged.push(row);
+    }
+    return merged;
+  }
 
   // ---------- Feld-Definitionen ----------
   var FIELDS = {
@@ -863,24 +930,24 @@
     renderAll();
   }
 
-  // ---------- Rendering: Feldliste ----------
+  // ---------- Rendering: Feldliste (Excel-Feldliste: Checkbox-artige Zeilen, kein Chip-Look) ----------
   function renderFieldList() {
     var html = "";
     Object.keys(FIELDS).forEach(function (name) {
       var sel = selectedField === name ? " selected" : "";
-      html += '<span class="chip' + sel + '" draggable="true" data-field="' + name + '">' +
-        '<span class="field-icon">' + FIELDS[name].icon + "</span>" + name + "</span>";
+      html += '<div class="field-row' + sel + '" draggable="true" data-field="' + name + '">' +
+        '<span class="field-icon">' + FIELDS[name].icon + "</span><span>" + name + "</span></div>";
     });
     fieldListEl.innerHTML = html;
 
-    fieldListEl.querySelectorAll(".chip").forEach(function (chip) {
-      chip.addEventListener("dragstart", function (e) {
-        e.dataTransfer.setData("text/plain", chip.dataset.field);
-        chip.classList.add("dragging");
+    fieldListEl.querySelectorAll(".field-row").forEach(function (row) {
+      row.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", row.dataset.field);
+        row.classList.add("dragging");
       });
-      chip.addEventListener("dragend", function () { chip.classList.remove("dragging"); });
-      chip.addEventListener("click", function () {
-        selectedField = selectedField === chip.dataset.field ? null : chip.dataset.field;
+      row.addEventListener("dragend", function () { row.classList.remove("dragging"); });
+      row.addEventListener("click", function () {
+        selectedField = selectedField === row.dataset.field ? null : row.dataset.field;
         renderFieldList();
       });
     });
@@ -1089,8 +1156,8 @@
   // es GETPIVOTDATA — die Formel, die Excel einfügt, wenn man von außen auf
   // eine Pivot-Zelle verweist. Didaktisch die treffendste Darstellung dessen,
   // "was diese Zelle bedeutet".
-  function pivotDataFormula(fieldName, filterParts) {
-    var s = '=GETPIVOTDATA("' + fieldName + '";$A$3';
+  function pivotDataFormula(fieldName, filterParts, anchorCell) {
+    var s = '=GETPIVOTDATA("' + fieldName + '";' + anchorCell;
     filterParts.forEach(function (p) { s += ';"' + p.field + '";"' + p.label + '"'; });
     return s + ")";
   }
@@ -1099,124 +1166,132 @@
     return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   }
 
+  // Aktive Zelle: Namensfeld + Formel aktualisieren. Persistenter Klick-Handler
+  // (einmalig gebunden, siehe unten) statt pro Render neu angehängt, da
+  // #sheet-canvas als Element selbst bei jedem Render erhalten bleibt.
+  function activateCell(cell) {
+    var prevActive = document.querySelector(".sheet-cell--active");
+    if (prevActive) prevActive.classList.remove("sheet-cell--active");
+    cell.classList.add("sheet-cell--active");
+    document.getElementById("formula-namebox").textContent = cell.dataset.addr;
+    document.getElementById("formula-text").textContent = cell.dataset.formula;
+  }
+
   function renderPivot() {
-    var container = document.getElementById("pivot-result");
+    var canvas = document.getElementById("sheet-canvas");
     var rowFields = zones.rows;
     var colFields = zones.columns;
     var valueFields = zones.values;
+    var pivotRows, pivotColCount;
 
     if (rowFields.length === 0 && colFields.length === 0) {
-      container.innerHTML = '<div class="empty-pivot">Ziehe Felder in „Zeilen“ und „Werte“, um eine Pivot-Tabelle zu erzeugen.</div>';
-      return;
-    }
-    if (valueFields.length === 0) {
-      container.innerHTML = '<div class="empty-pivot">Es fehlt noch ein Feld im Bereich „Werte“.</div>';
-      return;
-    }
+      pivotColCount = 4;
+      pivotRows = [[{ header: true, colspan: pivotColCount, cls: "pivot-placeholder", html: "Um eine PivotTable zu erstellen, ziehe Felder in „Zeilen“ und „Werte“." }]];
+    } else if (valueFields.length === 0) {
+      pivotColCount = 4;
+      pivotRows = [[{ header: true, colspan: pivotColCount, cls: "pivot-placeholder", html: "Es fehlt noch ein Feld im Bereich „Werte“." }]];
+    } else {
+      // (Filter-Felder werden im Prototyp nur als Bereich unterstützt, ohne aktive Filterung.)
+      var data = DATA;
 
-    // (Filter-Felder werden im Prototyp nur als Bereich unterstützt, ohne aktive Filterung.)
-    var data = DATA;
+      var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
+      var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
-    var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
-    var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
+      // Physische Spalten der Pivot-Ausgabe (ohne die Zeilenbeschriftungs-
+      // Spalte) in exakt der Reihenfolge, in der sie in jeder Datenzeile
+      // erscheinen — legt fest, welcher Spaltenbuchstabe (ab PIVOT_COL_OFFSET,
+      // da Quelldaten + Lückenspalte davor liegen) zu welcher Kombination/
+      // welchem Wertefeld gehört.
+      var columnMeta = [];
+      colCombos.forEach(function (cc) {
+        valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
+      });
+      if (colFields.length) {
+        valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
+      }
 
-    // Physische Spalten (ohne die Zeilenbeschriftungs-Spalte A) in exakt der
-    // Reihenfolge, in der sie in jeder Datenzeile erscheinen — legt fest,
-    // welcher Spaltenbuchstabe zu welcher Kombination/welchem Wertefeld gehört.
-    var columnMeta = [];
-    colCombos.forEach(function (cc) {
-      valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
-    });
-    if (colFields.length) {
-      valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
-    }
+      var firstDataRow = 3; // Arbeitsblatt-Zeile 1+2 sind die beiden Kopfzeilen
+      var lastDataRow = 2 + rowCombos.length;
+      var totalRowNum = lastDataRow + 1;
+      var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
 
-    var firstDataRow = 3; // Arbeitsblatt-Zeile 1+2 sind die beiden Kopfzeilen
-    var lastDataRow = 2 + rowCombos.length;
-    var totalRowNum = lastDataRow + 1;
+      pivotRows = [];
 
-    var rows = [];
+      // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
+      var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+      colCombos.forEach(function (cc) {
+        headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
+      });
+      if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
+      headerRow1.sticky = true;
+      pivotRows.push(headerRow1);
 
-    // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
-    var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
-    colCombos.forEach(function (cc) {
-      headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
-    });
-    if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
-    headerRow1.sticky = true;
-    rows.push(headerRow1);
+      // Kopfzeile 2: Wertefeld/Aggregation je Spalte
+      var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
+      columnMeta.forEach(function (cm) {
+        headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
+      });
+      headerRow2.sticky = true;
+      pivotRows.push(headerRow2);
 
-    // Kopfzeile 2: Wertefeld/Aggregation je Spalte
-    var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
-    columnMeta.forEach(function (cm) {
-      headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
-    });
-    headerRow2.sticky = true;
-    rows.push(headerRow2);
+      // Datenzeilen
+      rowCombos.forEach(function (rc, rIdx) {
+        var worksheetRow = firstDataRow + rIdx;
+        var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
+        var dataRow = [{ cls: "rowlabel", html: rc.label }];
+        columnMeta.forEach(function (cm, cIdx) {
+          var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
+          var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
+          var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
+          var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
+          var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
+          dataRow.push({
+            html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+            cls: "sheet-cell--value",
+            attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
+          });
+        });
+        pivotRows.push(dataRow);
+      });
 
-    // Datenzeilen
-    rowCombos.forEach(function (rc, rIdx) {
-      var worksheetRow = firstDataRow + rIdx;
-      var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
-      var dataRow = [{ cls: "rowlabel", html: rc.label }];
+      // Gesamtsumme-Zeile
+      var totalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
       columnMeta.forEach(function (cm, cIdx) {
-        var colLetter = columnLetter(cIdx + 2);
-        var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
-        var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
-        var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
-        var formula = pivotDataFormula(cm.vf.field, filterParts);
-        dataRow.push({
+        var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
+        var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
+        var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
+        var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
+        totalRow.push({
           html: formatAggResult(cm.vf.agg, cm.vf.field, val),
-          cls: "sheet-cell--value",
-          attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
+          cls: "sheet-cell--value cell-total",
+          attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
         });
       });
-      rows.push(dataRow);
-    });
+      pivotRows.push(totalRow);
 
-    // Gesamtsumme-Zeile
-    var totalRow = [{ cls: "rowlabel", html: "Gesamt" }];
-    columnMeta.forEach(function (cm, cIdx) {
-      var colLetter = columnLetter(cIdx + 2);
-      var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
-      var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
-      var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
-      totalRow.push({
-        html: formatAggResult(cm.vf.agg, cm.vf.field, val),
-        cls: "sheet-cell--value",
-        attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
-      });
-    });
-    totalRow.cls = "total-row";
-    rows.push(totalRow);
-
-    container.innerHTML =
-      '<div class="formula-bar">' +
-        '<span class="formula-namebox" id="formula-namebox"></span>' +
-        '<span class="formula-fx" aria-hidden="true">𝑓x</span>' +
-        '<span class="formula-text" id="formula-text"></span>' +
-      "</div>" +
-      '<div class="sheet-wrap">' + renderSheetTable(rows) + "</div>";
-
-    // Aktive Zelle: standardmäßig die Gesamtsumme unten rechts — didaktisch
-    // der interessanteste Fall. Klick auf eine andere Datenzelle aktualisiert
-    // Namensfeld und Formel entsprechend dieser Zelle.
-    function activateCell(cell) {
-      var prevActive = container.querySelector(".sheet-cell--active");
-      if (prevActive) prevActive.classList.remove("sheet-cell--active");
-      cell.classList.add("sheet-cell--active");
-      document.getElementById("formula-namebox").textContent = cell.dataset.addr;
-      document.getElementById("formula-text").textContent = cell.dataset.formula;
+      pivotColCount = 1 + columnMeta.length;
     }
 
-    var valueCells = container.querySelectorAll(".sheet-cell--value");
-    if (valueCells.length) activateCell(valueCells[valueCells.length - 1]);
+    canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount));
+    document.getElementById("sheet-caption").textContent =
+      "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen, 2026) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
 
-    container.querySelector(".sheet-wrap").addEventListener("click", function (e) {
-      var cell = e.target.closest(".sheet-cell--value");
-      if (cell) activateCell(cell);
-    });
+    // Aktive Zelle: standardmäßig die Gesamtsumme unten rechts — didaktisch
+    // der interessanteste Fall. Klick auf eine andere Datenzelle (siehe
+    // persistenter Handler unten) aktualisiert Namensfeld und Formel.
+    var valueCells = canvas.querySelectorAll(".sheet-cell--value");
+    if (valueCells.length) {
+      activateCell(valueCells[valueCells.length - 1]);
+    } else {
+      document.getElementById("formula-namebox").textContent = "";
+      document.getElementById("formula-text").textContent = "";
+    }
   }
+
+  document.getElementById("sheet-canvas").addEventListener("click", function (e) {
+    var cell = e.target.closest(".sheet-cell--value");
+    if (cell) activateCell(cell);
+  });
 
   function renderAll() {
     renderZones();
