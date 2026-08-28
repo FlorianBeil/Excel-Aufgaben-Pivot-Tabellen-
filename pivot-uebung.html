@@ -1335,6 +1335,22 @@
     '<rect x="79" y="61" width="11" height="11" fill="none" stroke="#A6A6A6"/>' +
     "</svg>";
 
+  // Die im HTML-String vergebenen "top"-Werte für fixierte Zeilen beruhen auf
+  // einer angenommenen Zeilenhöhe (ROW_H) — Schriftgrößen/Innenabstände weichen
+  // davon aber leicht ab, je nachdem wie viele fixierte Zeilen (Kopfzeile(n),
+  // ggf. Filterzeilen) übereinander gestapelt werden. Nach dem Rendern anhand
+  // der tatsächlich gemessenen Höhen korrigieren, statt die Konstante ewig
+  // nachzujustieren — bleibt so auch bei künftigen Stil-Anpassungen korrekt.
+  function fixStickyOffsets(canvas) {
+    var colheadsRow = canvas.querySelector(".sheet-colheads");
+    var offset = colheadsRow ? colheadsRow.getBoundingClientRect().height : 0;
+    canvas.querySelectorAll(".sheet-header-row").forEach(function (tr) {
+      var h = tr.getBoundingClientRect().height;
+      Array.prototype.forEach.call(tr.children, function (cell) { cell.style.top = offset + "px"; });
+      offset += h;
+    });
+  }
+
   function positionEmptyOverlay(canvas) {
     var anchor = canvas.querySelector(".pivot-anchor-cell");
     var overlay = document.getElementById("pivot-empty-overlay");
@@ -1376,94 +1392,130 @@
       pivotRows = [];
       pivotRows[1] = blankRow;
       showEmptyOverlay = true;
-    } else if (valueFields.length === 0) {
-      pivotColCount = 4;
-      pivotRows = [[{ header: true, colspan: pivotColCount, cls: "pivot-placeholder", html: "Es fehlt noch ein Feld im Bereich „Werte“." }]];
     } else {
-      // (Filter-Felder werden im Prototyp nur als Bereich unterstützt, ohne aktive Filterung.)
       var data = DATA;
+      var hasValues = valueFields.length > 0;
+      var filterFields = zones.filter;
 
       var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
       var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
-      // Physische Spalten der Pivot-Ausgabe (ohne die Zeilenbeschriftungs-
-      // Spalte) in exakt der Reihenfolge, in der sie in jeder Datenzeile
-      // erscheinen — legt fest, welcher Spaltenbuchstabe (ab PIVOT_COL_OFFSET,
-      // da Quelldaten + Lückenspalte davor liegen) zu welcher Kombination/
-      // welchem Wertefeld gehört.
-      var columnMeta = [];
-      colCombos.forEach(function (cc) {
-        valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
-      });
-      if (colFields.length) {
-        valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
-      }
-
-      var firstDataRow = 3; // Arbeitsblatt-Zeile 1+2 sind die beiden Kopfzeilen
-      var lastDataRow = 2 + rowCombos.length;
-      var totalRowNum = lastDataRow + 1;
-      var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
-
       pivotRows = [];
 
-      // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
-      var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
-      colCombos.forEach(function (cc) {
-        headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
+      // Filter-Bereich: eine Zeile "Feldname | (Alle)" je Filterfeld, plus eine
+      // Leerzeile als Abstand — genau wie in echtem Excel. Alles darunter
+      // (Kopf-/Datenzeilen) rückt dafür entsprechend nach unten.
+      filterFields.forEach(function (ff) {
+        var frow = [{ header: true, cls: "rowlabel", html: ff }, { header: true, html: "(Alle)" }];
+        frow.sticky = true;
+        pivotRows.push(frow);
       });
-      if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
-      headerRow1.sticky = true;
-      pivotRows.push(headerRow1);
+      if (filterFields.length) pivotRows.push([]);
+      var rowOffset = filterFields.length ? filterFields.length + 1 : 0;
 
-      // Kopfzeile 2: Wertefeld/Aggregation je Spalte
-      var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
-      columnMeta.forEach(function (cm) {
-        headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
-      });
-      headerRow2.sticky = true;
-      pivotRows.push(headerRow2);
+      if (hasValues) {
+        // Physische Spalten der Pivot-Ausgabe (ohne die Zeilenbeschriftungs-
+        // Spalte) in exakt der Reihenfolge, in der sie in jeder Datenzeile
+        // erscheinen — legt fest, welcher Spaltenbuchstabe (ab PIVOT_COL_OFFSET,
+        // da Quelldaten + Lückenspalte davor liegen) zu welcher Kombination/
+        // welchem Wertefeld gehört.
+        var columnMeta = [];
+        colCombos.forEach(function (cc) {
+          valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
+        });
+        if (colFields.length) {
+          valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
+        }
 
-      // Datenzeilen
-      rowCombos.forEach(function (rc, rIdx) {
-        var worksheetRow = firstDataRow + rIdx;
-        var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
-        var dataRow = [{ cls: "rowlabel", html: rc.label }];
+        var firstDataRow = rowOffset + 3; // + die beiden Kopfzeilen
+        var lastDataRow = rowOffset + 2 + rowCombos.length;
+        var totalRowNum = lastDataRow + 1;
+        var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
+
+        // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
+        var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+        colCombos.forEach(function (cc) {
+          headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
+        });
+        if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
+        headerRow1.sticky = true;
+        pivotRows.push(headerRow1);
+
+        // Kopfzeile 2: Wertefeld/Aggregation je Spalte
+        var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
+        columnMeta.forEach(function (cm) {
+          headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
+        });
+        headerRow2.sticky = true;
+        pivotRows.push(headerRow2);
+
+        // Datenzeilen
+        rowCombos.forEach(function (rc, rIdx) {
+          var worksheetRow = firstDataRow + rIdx;
+          var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
+          var dataRow = [{ cls: "rowlabel", html: rc.label }];
+          columnMeta.forEach(function (cm, cIdx) {
+            var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
+            var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
+            var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
+            var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
+            var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
+            dataRow.push({
+              html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+              cls: "sheet-cell--value",
+              attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
+            });
+          });
+          pivotRows.push(dataRow);
+        });
+
+        // Gesamtsumme-Zeile
+        var totalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
         columnMeta.forEach(function (cm, cIdx) {
           var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
-          var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
-          var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
-          var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
-          var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
-          dataRow.push({
+          var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
+          var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
+          var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
+          totalRow.push({
             html: formatAggResult(cm.vf.agg, cm.vf.field, val),
-            cls: "sheet-cell--value",
-            attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
+            cls: "sheet-cell--value cell-total",
+            attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
           });
         });
-        pivotRows.push(dataRow);
-      });
+        pivotRows.push(totalRow);
 
-      // Gesamtsumme-Zeile
-      var totalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
-      columnMeta.forEach(function (cm, cIdx) {
-        var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
-        var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
-        var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
-        var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
-        totalRow.push({
-          html: formatAggResult(cm.vf.agg, cm.vf.field, val),
-          cls: "sheet-cell--value cell-total",
-          attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
-        });
-      });
-      pivotRows.push(totalRow);
+        pivotColCount = 1 + columnMeta.length;
+      } else {
+        // Noch kein Wertefeld: zeige trotzdem sofort die Gruppierungs-
+        // Beschriftungen an (Zeilen- und/oder Spaltenwerte) — genau wie es
+        // echtes Excel schon tut, bevor überhaupt ein Wertefeld gewählt wurde.
+        var skColCombos = colFields.length ? colCombos : [];
+        pivotColCount = 1 + skColCombos.length;
 
-      pivotColCount = 1 + columnMeta.length;
+        var skHeaderRow = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+        skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, html: cc.label }); });
+        skHeaderRow.sticky = true;
+        pivotRows.push(skHeaderRow);
+
+        if (rowFields.length) {
+          rowCombos.forEach(function (rc) {
+            var skRow = [{ cls: "rowlabel", html: rc.label }];
+            skColCombos.forEach(function () { skRow.push({ html: "" }); });
+            pivotRows.push(skRow);
+          });
+          var skTotalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
+          skColCombos.forEach(function () { skTotalRow.push({ cls: "cell-total", html: "" }); });
+          pivotRows.push(skTotalRow);
+        }
+      }
+
+      pivotColCount = Math.max(pivotColCount, filterFields.length ? 2 : 1);
     }
 
     var tableModifierClass = showEmptyOverlay ? "sheet-table--uniform-cols" : "";
     canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) +
       (showEmptyOverlay ? emptyPivotOverlayHtml() : "");
+    fixStickyOffsets(canvas);
     document.getElementById("sheet-caption").textContent =
       "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen, 2026) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
 
@@ -1487,6 +1539,7 @@
           var lastRow = pivotRows[pivotRows.length - 1];
           for (var ec = 0; ec < extraCols; ec++) lastRow.push({ html: "" });
           canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) + emptyPivotOverlayHtml();
+          fixStickyOffsets(canvas);
           positionEmptyOverlay(canvas);
         }
       }
