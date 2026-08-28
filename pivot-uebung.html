@@ -203,7 +203,16 @@
     min-width: 92px;
   }
 
-  table.sheet-table th { text-align: center; }
+  /* "Kopfzellen-Look" (Grau, fette Schrift ohne Monospace) hängt bewusst am
+     <th>-Tag selbst, nicht an der Zeile — sonst würde jede Zelle, die nur
+     zufällig eine fixierte Zeile teilt (z. B. eine Quelldaten-Datenzeile
+     neben einer zweiten Pivot-Kopfzeile), fälschlich grau eingefärbt. */
+  table.sheet-table th {
+    text-align: center;
+    background: var(--header-gray);
+    font-family: var(--font-body);
+    font-weight: 600;
+  }
   table.sheet-table td { text-align: right; }
   table.sheet-table .rowlabel { text-align: left; font-weight: 500; }
 
@@ -264,13 +273,14 @@
     z-index: 2;
   }
 
-  /* Inhaltliche Kopfzeile(n) der jeweiligen Tabelle (Feldnamen bzw. Pivot-Header) */
+  /* Fixiert eine inhaltliche Kopfzeile (Feldnamen bzw. Pivot-Header) beim
+     Scrollen — bewusst NUR Positionierung, kein Hintergrund/Schrift: eine
+     Zeile kann Zellen aus Quelldaten UND Pivot-Bereich enthalten, und nur
+     die tatsächlichen <th>-Kopfzellen (siehe oben) sollen grau erscheinen,
+     nicht z. B. eine Quelldaten-Datenzeile, die zufällig dieselbe Zeile teilt. */
   table.sheet-table .sheet-header-row th,
   table.sheet-table .sheet-header-row td {
     position: sticky;
-    background: var(--header-gray);
-    font-family: var(--font-body);
-    font-weight: 600;
     z-index: 1;
   }
   table.sheet-table .sheet-header-row .sheet-rownum { z-index: 3; }
