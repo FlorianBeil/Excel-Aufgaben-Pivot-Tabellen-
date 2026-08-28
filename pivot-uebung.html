@@ -281,10 +281,11 @@
   }
 
   /* Kopfzeile(n) der Pivot-Ausgabe selbst (Zeilen-/Spaltenbeschriftung,
-     "Agg von Feld") — bewusst per eigener Zeilen-Klasse abgegrenzt von der
-     Quelldaten-Kopfzeile und der Filterzeile, die ihr gedämpftes Grau behalten. */
-  table.sheet-table tr.pivot-header-row th,
-  table.sheet-table tr.pivot-header-row td {
+     "Agg von Feld") — pro Zelle statt pro Zeile markiert, da die Zeile über
+     den Merge auch die Quelldaten-Spalten A–D enthält, die ihr neutrales
+     Grau behalten sollen, nicht das Blau der Pivot-Kopfzeile. */
+  table.sheet-table th.pivot-header-row,
+  table.sheet-table td.pivot-header-row {
     background: var(--excel-blue-tint);
   }
 
@@ -1444,22 +1445,23 @@
         var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
 
         // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
-        var headerRow1 = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+        // (pivot-header-row je Zelle statt pro Zeile vergeben — die Zeile
+        // enthält über den Merge auch die Quelldaten-Spalten A–D, die ihr
+        // neutrales Grau behalten sollen, nicht das Blau der Pivot-Kopfzeile.)
+        var headerRow1 = [{ header: true, cls: "rowlabel pivot-header-row", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
         colCombos.forEach(function (cc) {
-          headerRow1.push({ header: true, colspan: valueFields.length, html: cc.label });
+          headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: cc.label });
         });
-        if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, html: "Gesamt" });
+        if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: "Gesamt" });
         headerRow1.sticky = true;
-        headerRow1.cls = "pivot-header-row";
         pivotRows.push(headerRow1);
 
         // Kopfzeile 2: Wertefeld/Aggregation je Spalte
-        var headerRow2 = [{ header: true, cls: "rowlabel", html: "" }];
+        var headerRow2 = [{ header: true, cls: "rowlabel pivot-header-row", html: "" }];
         columnMeta.forEach(function (cm) {
-          headerRow2.push({ header: true, html: cm.vf.agg + " von " + cm.vf.field });
+          headerRow2.push({ header: true, cls: "pivot-header-row", html: cm.vf.agg + " von " + cm.vf.field });
         });
         headerRow2.sticky = true;
-        headerRow2.cls = "pivot-header-row";
         pivotRows.push(headerRow2);
 
         // Datenzeilen
@@ -1505,10 +1507,9 @@
         var skColCombos = colFields.length ? colCombos : [];
         pivotColCount = 1 + skColCombos.length;
 
-        var skHeaderRow = [{ header: true, cls: "rowlabel", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
-        skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, html: cc.label }); });
+        var skHeaderRow = [{ header: true, cls: "rowlabel pivot-header-row", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
+        skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, cls: "pivot-header-row", html: cc.label }); });
         skHeaderRow.sticky = true;
-        skHeaderRow.cls = "pivot-header-row";
         pivotRows.push(skHeaderRow);
 
         if (rowFields.length) {
