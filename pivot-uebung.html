@@ -77,36 +77,9 @@
     padding: 0.45rem 0.85rem;
   }
 
-  .task-card__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
   .task-card h2 { font-size: 0.9rem; margin-bottom: 0.1rem; }
   .task-card p { margin: 0.08rem 0; color: var(--text-primary); font-size: 0.76rem; line-height: 1.25; }
   .task-card .goal { color: var(--text-muted); font-size: 0.72rem; }
-
-  .exercise-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .exercise-picker select {
-    font-family: var(--font-body);
-    font-size: 0.85rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: 7px;
-    border: 1px solid var(--grid-gray);
-    background: #fff;
-    color: var(--text-primary);
-    min-width: 240px;
-  }
 
   .hints-toggle {
     margin-top: 0.2rem;
@@ -571,13 +544,7 @@
 
 <main>
   <section class="card task-card">
-    <div class="task-card__head">
-      <h2 id="task-title"></h2>
-      <div class="exercise-picker">
-        <label for="exercise-select">Testübung wählen</label>
-        <select id="exercise-select"></select>
-      </div>
-    </div>
+    <h2 id="task-title"></h2>
     <div id="task-intro"></div>
     <button class="hints-toggle" id="hints-toggle">Tipps anzeigen</button>
     <div class="hints-box" id="hints-box">
@@ -952,36 +919,12 @@
   }
 
   // ---------- Rendering: Aufgabentext ----------
-  function renderExercisePicker() {
-    var select = document.getElementById("exercise-select");
-    select.innerHTML = EXERCISES.map(function (ex, idx) {
-      return '<option value="' + idx + '">' + ex.title + "</option>";
-    }).join("");
-    select.value = String(EXERCISES.indexOf(currentExercise));
-    select.addEventListener("change", function () {
-      loadExercise(EXERCISES[Number(select.value)]);
-    });
-  }
-
   function renderExerciseText() {
     document.getElementById("task-title").textContent = "Aufgabe: " + currentExercise.title;
     document.getElementById("task-intro").innerHTML = currentExercise.intro;
     document.getElementById("hints-list").innerHTML = currentExercise.hints.map(function (h) {
       return "<li>" + h + "</li>";
     }).join("");
-  }
-
-  function loadExercise(exercise) {
-    currentExercise = exercise;
-    zones = { filter: [], columns: [], rows: [], values: [] };
-    dateGroupLevels = {};
-    selectedField = null;
-    selectedFieldZone = null;
-    document.getElementById("exercise-select").value = String(EXERCISES.indexOf(exercise));
-    feedbackEl.classList.remove("show", "correct", "incorrect");
-    renderExerciseText();
-    renderFieldList();
-    renderAll();
   }
 
   // ---------- Rendering: Feldliste (Excel-Feldliste: Checkbox-artige Zeilen, kein Chip-Look) ----------
@@ -1519,7 +1462,6 @@
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
   });
 
-  renderExercisePicker();
   renderExerciseText();
   renderFieldList();
   renderAll();
