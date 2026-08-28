@@ -182,7 +182,11 @@
 
   table.sheet-table {
     border-collapse: collapse;
-    width: 100%;
+    /* Kein width:100% — sonst zwingt das die Spalten, sich auf die volle
+       Breite des Arbeitsblatts aufzublähen, statt sich an ihrem Inhalt zu
+       orientieren (besonders sichtbar, wenn die Pivot-Spalten noch leer
+       sind: dann fließt der komplette überschüssige Platz in A–C). */
+    width: auto;
     font-size: 0.82rem;
     font-family: var(--font-mono);
   }
@@ -1326,7 +1330,11 @@
       for (var bc = 0; bc < pivotColCount; bc++) {
         blankRow.push(bc === 0 ? { html: "", cls: "pivot-anchor-cell" } : { html: "" });
       }
-      pivotRows = [blankRow];
+      // Bewusst bei Index 1 (Arbeitsblatt-Zeile 2) statt 0: Zeile 1 fällt sonst mit
+      // der fixierten, grau hinterlegten Kopfzeile der Quelldaten zusammen — die
+      // Ankerzelle (und damit "PivotTable1" darüber) würde dahinter verschwinden.
+      pivotRows = [];
+      pivotRows[1] = blankRow;
       showEmptyOverlay = true;
     } else if (valueFields.length === 0) {
       pivotColCount = 4;
