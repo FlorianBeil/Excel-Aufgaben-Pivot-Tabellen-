@@ -289,6 +289,13 @@
     background: var(--excel-blue-tint);
   }
 
+  /* Lückenspalte bleibt immer weiß — auch innerhalb einer grauen Kopf-/
+     Filterzeile, die sonst über die Zeilen-Klasse jede Zelle einfärben würde. */
+  table.sheet-table th.sheet-gap,
+  table.sheet-table td.sheet-gap {
+    background: #fff;
+  }
+
   /* ---------- Rechts angedockte PivotTable-Feldliste (echtes Excel-Panel-Vorbild) ---------- */
   .pivot-fields-panel {
     width: 280px;
@@ -815,7 +822,10 @@
       var row = [];
       var src = srcRows[i];
       row = row.concat(src || [{ colspan: SOURCE_COL_COUNT, html: "" }]);
-      for (var g = 0; g < GAP_COLS; g++) row.push({ html: "" });
+      // Eigene Klasse für die Lückenspalte: bleibt immer weiß, auch wenn die
+      // Zeile als Ganzes (über Kopf-/Filterzeilen-Zugehörigkeit) grau oder
+      // blau eingefärbt wird — die Lücke selbst gehört zu keinem der beiden.
+      for (var g = 0; g < GAP_COLS; g++) row.push({ html: "", cls: "sheet-gap" });
       var pv = pvRows[i];
       if (pv) row = row.concat(pv);
       else if (pvColCount) row.push({ colspan: pvColCount, html: "" });
