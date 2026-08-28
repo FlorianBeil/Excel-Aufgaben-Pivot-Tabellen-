@@ -196,11 +196,41 @@
     padding: 0.26rem 0.4rem;
     white-space: nowrap;
     background: #fff; /* einheitlicher Zellhintergrund, keine Zebra-Streifen */
+    /* Einheitliche Standardbreite für jede Spalte, ob mit oder ohne Inhalt —
+       sonst fallen leere (Lücken-/Pivot-Platzhalter-)Spalten neben A–C winzig
+       aus. Zeilennummern-/Eckzelle bewusst ausgenommen, siehe unten. */
+    min-width: 92px;
   }
 
   table.sheet-table th { text-align: center; }
   table.sheet-table td { text-align: right; }
   table.sheet-table .rowlabel { text-align: left; font-weight: 500; }
+
+  table.sheet-table .sheet-rownum, table.sheet-table .sheet-corner {
+    min-width: 0;
+    width: 1%;
+  }
+
+  /* Nur im leeren Zustand (kein Feld abgelegt): min-width allein reicht nicht,
+     weil die Tabelle mit width:auto trotzdem versucht, den ganzen verfügbaren
+     Platz zu füllen — ohne Inhalt in den Pivot-Spalten fließt dieser Zuwachs
+     ungleichmäßig in irgendeine Spalte statt gleichmäßig auf neue Spalten
+     verteilt zu werden. Deshalb hier jede Spalte hart auf eine feste Breite
+     fixieren (min = max = width); die normale Pivot-Darstellung mit echtem
+     Inhalt bleibt davon unberührt (dort bestimmt weiterhin der Inhalt die
+     Breite, siehe oben). */
+  table.sheet-table.sheet-table--uniform-cols th,
+  table.sheet-table.sheet-table--uniform-cols td {
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
+  }
+  table.sheet-table.sheet-table--uniform-cols .sheet-rownum,
+  table.sheet-table.sheet-table--uniform-cols .sheet-corner {
+    width: 32px;
+    min-width: 0;
+    max-width: 32px;
+  }
 
   /* Spaltenbuchstaben-Kopfzeile: helle, gedämpfte, zentrierte Chrome-Zeile */
   table.sheet-table .sheet-colheads th {
@@ -707,7 +737,7 @@
     return s;
   }
 
-  function renderSheetTable(rows) {
+  function renderSheetTable(rows, extraTableClass) {
     var totalCols = 0;
     rows.forEach(function (row) {
       var cols = row.reduce(function (sum, cell) { return sum + (cell.colspan || 1); }, 0);
@@ -717,7 +747,7 @@
     var ROW_H = 28; // px, angenommene Zeilenhöhe zum Stapeln fixierter Kopfzeilen
     var stickyDepth = 1; // Slot 0 ist die Spaltenbuchstaben-Zeile selbst
 
-    var html = '<table class="sheet-table"><thead><tr class="sheet-colheads"><th class="sheet-corner" style="top:0px;left:0px"></th>';
+    var html = '<table class="sheet-table' + (extraTableClass ? " " + extraTableClass : "") + '"><thead><tr class="sheet-colheads"><th class="sheet-corner" style="top:0px;left:0px"></th>';
     for (var c = 1; c <= totalCols; c++) html += "<th>" + columnLetter(c) + "</th>";
     html += "</tr></thead><tbody>";
 
@@ -1305,6 +1335,15 @@
     '<rect x="79" y="61" width="11" height="11" fill="none" stroke="#A6A6A6"/>' +
     "</svg>";
 
+  function positionEmptyOverlay(canvas) {
+    var anchor = canvas.querySelector(".pivot-anchor-cell");
+    var overlay = document.getElementById("pivot-empty-overlay");
+    if (anchor && overlay) {
+      overlay.style.left = anchor.offsetLeft + "px";
+      overlay.style.top = anchor.offsetTop + "px";
+    }
+  }
+
   function emptyPivotOverlayHtml() {
     return '<div class="pivot-empty-overlay" id="pivot-empty-overlay">' +
       '<div class="pivot-empty-overlay__namebox">PivotTable1</div>' +
@@ -1322,10 +1361,11 @@
     var showEmptyOverlay = false;
 
     if (rowFields.length === 0 && colFields.length === 0) {
-      // Komplett leeres Blatt: eine einzelne, unauffällige Ankerzelle je Spalte —
-      // die eigentliche Excel-typische Grafik wird als Overlay darüber gelegt
-      // (siehe unten), statt den Zellinhalt selbst zu ersetzen.
-      pivotColCount = 5;
+      // Komplett leeres Blatt: zunächst nur eine Ankerzelle — wie viele weitere
+      // leere Spalten dahinter nötig sind, um den sichtbaren Platz bis zum
+      // Feldbereich zu füllen, wird nach dem ersten Render gemessen und ergänzt
+      // (siehe unten), statt eine feste Anzahl zu erraten.
+      pivotColCount = 1;
       var blankRow = [];
       for (var bc = 0; bc < pivotColCount; bc++) {
         blankRow.push(bc === 0 ? { html: "", cls: "pivot-anchor-cell" } : { html: "" });
@@ -1421,17 +1461,34 @@
       pivotColCount = 1 + columnMeta.length;
     }
 
-    canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount)) +
+    var tableModifierClass = showEmptyOverlay ? "sheet-table--uniform-cols" : "";
+    canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) +
       (showEmptyOverlay ? emptyPivotOverlayHtml() : "");
     document.getElementById("sheet-caption").textContent =
       "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen, 2026) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
 
     if (showEmptyOverlay) {
-      var anchor = canvas.querySelector(".pivot-anchor-cell");
-      var overlay = document.getElementById("pivot-empty-overlay");
-      if (anchor && overlay) {
-        overlay.style.left = anchor.offsetLeft + "px";
-        overlay.style.top = anchor.offsetTop + "px";
+      positionEmptyOverlay(canvas);
+
+      // Ein echtes Arbeitsblatt hört nicht bei einer festen Spaltenanzahl auf,
+      // sondern läuft mit Gitternetzlinien bis zum sichtbaren Rand weiter.
+      // Nach dem ersten Render (nur die Ankerspalte) messen, wie viel Platz bis
+      // zum Feldbereich noch frei ist, und mit genau so vielen weiteren leeren
+      // Spalten auffüllen — das passt sich automatisch an jede Fenstergröße an,
+      // statt eine feste Anzahl zu hartcodieren.
+      var table = canvas.querySelector("table.sheet-table");
+      var anchorForWidth = canvas.querySelector(".pivot-anchor-cell");
+      if (table && anchorForWidth) {
+        var missingWidth = canvas.clientWidth - table.offsetWidth;
+        var colWidth = anchorForWidth.offsetWidth || 92;
+        if (missingWidth > colWidth) {
+          var extraCols = Math.ceil(missingWidth / colWidth);
+          pivotColCount += extraCols;
+          var lastRow = pivotRows[pivotRows.length - 1];
+          for (var ec = 0; ec < extraCols; ec++) lastRow.push({ html: "" });
+          canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) + emptyPivotOverlayHtml();
+          positionEmptyOverlay(canvas);
+        }
       }
     }
 
