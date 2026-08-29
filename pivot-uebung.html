@@ -285,6 +285,15 @@
   }
   table.sheet-table .sheet-header-row .sheet-rownum { z-index: 3; }
 
+  /* Der Filter-Bereich teilt sich seine Arbeitsblatt-Zeile mit der fixierten
+     Quelldaten-Kopfzeile (Spalten A–C) und würde die Fixierung sonst einfach
+     mit-erben — hier gezielt wieder aufheben, damit nur die Zellen A–C oben
+     bleiben und der Filter-Bereich beim Scrollen normal mit wegläuft. */
+  table.sheet-table th.filter-cell,
+  table.sheet-table td.filter-cell {
+    position: static;
+  }
+
   table.sheet-table .cell-total {
     font-weight: 700;
     background: var(--excel-blue-tint);
@@ -1438,8 +1447,15 @@
       // Leerzeile als Abstand — genau wie in echtem Excel. Alles darunter
       // (Kopf-/Datenzeilen) rückt dafür entsprechend nach unten.
       filterFields.forEach(function (ff) {
-        var frow = [{ header: true, cls: "rowlabel", html: ff }, { header: true, html: "(Alle)" }];
-        frow.sticky = true;
+        // Gleiche blaue Füllung wie die Pivot-Kopfzeile, aber bewusst NICHT
+        // fixiert: die erste Filterzeile teilt sich ihre Arbeitsblatt-Zeile
+        // mit der (fixierten) Quelldaten-Kopfzeile in A–C, daher reicht kein
+        // row.sticky=false — "filter-cell" hebt die geerbte Fixierung gezielt
+        // für diese beiden Zellen wieder auf.
+        var frow = [
+          { header: true, cls: "rowlabel pivot-header-row filter-cell", html: ff },
+          { header: true, cls: "pivot-header-row filter-cell", html: "(Alle)" }
+        ];
         pivotRows.push(frow);
       });
       if (filterFields.length) pivotRows.push([]);
