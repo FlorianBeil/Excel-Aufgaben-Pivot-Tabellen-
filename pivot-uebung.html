@@ -221,7 +221,19 @@
   }
 
   table.sheet-table {
-    border-collapse: collapse;
+    /* separate statt collapse: mit vielen position:sticky-Zellen (Spalten-
+       buchstaben, Zeilennummern, Kopf-/Filterzeilen) lässt Chrome bei
+       collapse gelegentlich genau die vertikalen Ränder sticky-positionierter
+       Zellen verschwinden (bekannter Rendering-Fehler) — mit separate
+       bekommt jede Zelle ihren eigenen, unabhängig gemalten Rand, das
+       Zusammenlegen entfällt und damit auch der Fehler.
+       Der äußere obere/linke Rand kommt vom table-Element selbst, jede
+       Zelle steuert nur ihren rechten/unteren Rand bei (siehe unten) —
+       sonst wären interne Ränder doppelt so dick wie der Außenrand. */
+    border-collapse: separate;
+    border-spacing: 0;
+    border-top: 1px solid var(--grid-gray);
+    border-left: 1px solid var(--grid-gray);
     /* Kein width:100% — sonst zwingt das die Spalten, sich auf die volle
        Breite des Arbeitsblatts aufzublähen, statt sich an ihrem Inhalt zu
        orientieren (besonders sichtbar, wenn die Pivot-Spalten noch leer
@@ -232,7 +244,9 @@
   }
 
   table.sheet-table th, table.sheet-table td {
-    border: 1px solid var(--grid-gray); /* Rahmen auf allen vier Seiten statt nur horizontal */
+    border: 0;
+    border-right: 1px solid var(--grid-gray);
+    border-bottom: 1px solid var(--grid-gray);
     padding: 0.26rem 0.4rem;
     white-space: nowrap;
     background: #fff; /* einheitlicher Zellhintergrund, keine Zebra-Streifen */
