@@ -241,6 +241,98 @@
     font-weight: 600;
   }
 
+  /* Zeilenbeschriftungen-Zelle: wie der Filter-Bereich klickbar, öffnet aber
+     das größere Excel-Sortier-/Filtermenü statt der einfachen Werteliste. */
+  .rowlabel-filter-cell { cursor: pointer; }
+  .rowlabel-filter-cell:hover .pivot-filter-btn { border-color: var(--excel-green-dark); }
+
+  /* ---------- Zeilenbeschriftungen: Sortier-/Filtermenü (Excel-Nachbau) ---------- */
+  .rowlabel-filter-menu {
+    position: absolute;
+    z-index: 6;
+    width: 250px;
+    background: #fff;
+    border: 1px solid var(--grid-gray);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    padding: 0.25rem 0;
+  }
+  .rlm-item {
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+  .rlm-item:hover { background: var(--excel-green-tint); }
+  .rlm-item--disabled {
+    color: var(--text-muted);
+    cursor: default;
+    pointer-events: none;
+  }
+  .rlm-arrow { color: var(--text-muted); }
+  .rlm-sep {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.25rem 0;
+  }
+  .rlm-search-wrap { padding: 0.15rem 0.7rem 0.4rem; }
+  .rlm-search {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--grid-gray);
+    border-radius: 3px;
+    padding: 0.25rem 0.45rem;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+  }
+  .rlm-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.2rem 0;
+    margin-bottom: 0.4rem;
+  }
+  .rlm-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rlm-check-row:hover { background: var(--excel-green-tint); }
+  .rlm-check-row input { margin: 0; flex-shrink: 0; }
+  .rlm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    padding: 0 0.7rem;
+  }
+  .rlm-btn {
+    border: 1px solid var(--grid-gray);
+    background: #fff;
+    border-radius: 3px;
+    padding: 0.25rem 0.7rem;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .rlm-btn:hover { background: var(--header-gray); }
+  .rlm-btn--primary {
+    background: var(--excel-green);
+    border-color: var(--excel-green);
+    color: #fff;
+  }
+  .rlm-btn--primary:hover { background: var(--excel-green-dark); }
+
   table.sheet-table {
     /* separate statt collapse: mit vielen position:sticky-Zellen (Spalten-
        buchstaben, Zeilennummern, Kopf-/Filterzeilen) lässt Chrome bei
@@ -1085,6 +1177,9 @@
     } else {
       zones[zoneKey].push(fieldName);
     }
+    // Ein zusätzliches/neues Zeilenfeld ändert den Kombi-Schlüsselraum —
+    // alte Zeilenbeschriftungen-Filter-/Sortierauswahl passt dann nicht mehr.
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; }
   }
 
   function removeFromZoneState(zoneKey, fieldName) {
@@ -1097,6 +1192,9 @@
     // Filterauswahl mit — sonst würde sie beim erneuten Ablegen "unsichtbar"
     // fortbestehen.
     if (zoneKey === "filter") delete filterSelections[fieldName];
+    // Ändert sich die Zeilen-Zone, sind alte Zeilenbeschriftungen-Kombi-Keys
+    // (Sortierung/ausgeblendete Werte) für das neue Feld-Set bedeutungslos.
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; }
   }
 
   function addFieldToZone(zoneKey, fieldName) {
@@ -1551,12 +1649,142 @@
     });
   }
 
-  // Klick irgendwo außerhalb schließt das offene Dropdown wieder — Klicks auf
-  // das Dropdown selbst oder die Filter-Zelle (öffnet/schließt es gezielt via
-  // eigenem Handler) werden hier bewusst ignoriert.
-  document.addEventListener("click", function (e) {
-    if (e.target.closest(".filter-dropdown") || e.target.closest(".filter-value-cell")) return;
+  // ---------- Zeilenbeschriftungen: Sortier-/Filtermenü (Excel-Nachbau) ----------
+  // Ausgeblendete Zeilen-Kombinationen (Kombi-Key, siehe computeGroupCombos) und
+  // gewählte Sortierrichtung — wirken erst nach Klick auf "OK" im Menü, wirken
+  // dann aber echt auf die Pivot-Berechnung (nicht nur kosmetisch).
+  var rowLabelHidden = [];
+  var rowLabelSortDir = null; // null | "asc" | "desc"
+  // Während das Menü offen ist: Arbeitskopie der Auswahl, erst bei "OK" in
+  // rowLabelHidden übernommen — wie in echtem Excel (Abbrechen verwirft sie).
+  var rowLabelMenuDraftHidden = null;
+  var rowLabelMenuSearch = "";
+
+  function closeRowLabelFilterMenu() {
+    var el = document.getElementById("rowlabel-filter-menu");
+    if (el) el.remove();
+    rowLabelMenuDraftHidden = null;
+    rowLabelMenuSearch = "";
+  }
+
+  function rowLabelMenuCombos() {
+    return computeGroupCombos(zones.rows, getFilteredData(), dateGroupLevels);
+  }
+
+  function renderRowLabelFilterMenuHtml() {
+    var fieldName = zones.rows[0];
+    var combos = rowLabelMenuCombos();
+    var hiddenSet = {};
+    rowLabelMenuDraftHidden.forEach(function (k) { hiddenSet[k] = true; });
+    var term = rowLabelMenuSearch.trim().toLowerCase();
+    var visibleCombos = term ? combos.filter(function (c) { return c.label.toLowerCase().indexOf(term) !== -1; }) : combos;
+    var allVisibleChecked = visibleCombos.length > 0 && visibleCombos.every(function (c) { return !hiddenSet[c.key]; });
+    var hasActiveFilter = rowLabelHidden.length > 0;
+
+    return '' +
+      '<div class="rlm-item" data-action="sort-asc">Von A bis Z sortieren</div>' +
+      '<div class="rlm-item" data-action="sort-desc">Von Z bis A sortieren</div>' +
+      '<div class="rlm-item rlm-item--disabled">Weitere Sortieroptionen…</div>' +
+      '<div class="rlm-sep"></div>' +
+      '<div class="rlm-item' + (hasActiveFilter ? "" : " rlm-item--disabled") + '" data-action="clear-filter">Filter entfernen aus &bdquo;' + escapeAttr(fieldName) + '&ldquo;</div>' +
+      '<div class="rlm-item rlm-item--disabled">Beschriftungsfilter <span class="rlm-arrow">▸</span></div>' +
+      '<div class="rlm-item rlm-item--disabled">Wertefilter <span class="rlm-arrow">▸</span></div>' +
+      '<div class="rlm-sep"></div>' +
+      '<div class="rlm-search-wrap"><input type="text" class="rlm-search" id="rlm-search-input" placeholder="Suchen" value="' + escapeAttr(rowLabelMenuSearch) + '"></div>' +
+      '<div class="rlm-list" id="rlm-list">' +
+        '<label class="rlm-check-row"><input type="checkbox" data-action="toggle-all"' + (allVisibleChecked ? " checked" : "") + '> (Alle anzeigen)</label>' +
+        visibleCombos.map(function (c) {
+          return '<label class="rlm-check-row"><input type="checkbox" data-key="' + escapeAttr(c.key) + '"' + (hiddenSet[c.key] ? "" : " checked") + '> ' + escapeAttr(c.label) + '</label>';
+        }).join("") +
+      '</div>' +
+      '<div class="rlm-actions">' +
+        '<button type="button" class="rlm-btn rlm-btn--primary" data-action="ok">OK</button>' +
+        '<button type="button" class="rlm-btn" data-action="cancel">Abbrechen</button>' +
+      '</div>';
+  }
+
+  function refreshRowLabelFilterMenuList() {
+    var list = document.getElementById("rlm-list");
+    if (!list) return;
+    var combos = rowLabelMenuCombos();
+    var hiddenSet = {};
+    rowLabelMenuDraftHidden.forEach(function (k) { hiddenSet[k] = true; });
+    var term = rowLabelMenuSearch.trim().toLowerCase();
+    var visibleCombos = term ? combos.filter(function (c) { return c.label.toLowerCase().indexOf(term) !== -1; }) : combos;
+    var allVisibleChecked = visibleCombos.length > 0 && visibleCombos.every(function (c) { return !hiddenSet[c.key]; });
+    list.innerHTML = '<label class="rlm-check-row"><input type="checkbox" data-action="toggle-all"' + (allVisibleChecked ? " checked" : "") + '> (Alle anzeigen)</label>' +
+      visibleCombos.map(function (c) {
+        return '<label class="rlm-check-row"><input type="checkbox" data-key="' + escapeAttr(c.key) + '"' + (hiddenSet[c.key] ? "" : " checked") + '> ' + escapeAttr(c.label) + '</label>';
+      }).join("");
+  }
+
+  function openRowLabelFilterMenu(cell) {
     closeFilterDropdown();
+    closeRowLabelFilterMenu();
+    if (!zones.rows.length) return;
+    rowLabelMenuDraftHidden = rowLabelHidden.slice();
+    var canvas = document.getElementById("sheet-canvas");
+    canvas.insertAdjacentHTML("beforeend", '<div class="rowlabel-filter-menu" id="rowlabel-filter-menu">' + renderRowLabelFilterMenuHtml() + "</div>");
+    var menu = document.getElementById("rowlabel-filter-menu");
+    menu.style.left = cell.offsetLeft + "px";
+    menu.style.top = (cell.offsetTop + cell.offsetHeight) + "px";
+
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var actionEl = e.target.closest("[data-action]");
+      if (!actionEl) return;
+      var action = actionEl.dataset.action;
+      if (action === "sort-asc" || action === "sort-desc") {
+        rowLabelSortDir = action === "sort-asc" ? "asc" : "desc";
+        closeRowLabelFilterMenu();
+        renderPivot();
+      } else if (action === "clear-filter") {
+        if (!rowLabelHidden.length) return;
+        rowLabelHidden = [];
+        closeRowLabelFilterMenu();
+        renderPivot();
+      } else if (action === "ok") {
+        rowLabelHidden = rowLabelMenuDraftHidden.slice();
+        closeRowLabelFilterMenu();
+        renderPivot();
+      } else if (action === "cancel") {
+        closeRowLabelFilterMenu();
+      } else if (action === "toggle-all") {
+        var checked = actionEl.checked;
+        var combos = rowLabelMenuCombos();
+        var term = rowLabelMenuSearch.trim().toLowerCase();
+        var visibleCombos = term ? combos.filter(function (c) { return c.label.toLowerCase().indexOf(term) !== -1; }) : combos;
+        var visibleKeys = {};
+        visibleCombos.forEach(function (c) { visibleKeys[c.key] = true; });
+        // Nur die aktuell sichtbaren (ggf. durch die Suche gefilterten)
+        // Einträge an-/abwählen — wie in echtem Excel.
+        rowLabelMenuDraftHidden = rowLabelMenuDraftHidden.filter(function (k) { return !visibleKeys[k]; });
+        if (!checked) visibleCombos.forEach(function (c) { rowLabelMenuDraftHidden.push(c.key); });
+        refreshRowLabelFilterMenuList();
+      }
+    });
+    menu.addEventListener("change", function (e) {
+      var box = e.target.closest("input[data-key]");
+      if (!box) return;
+      var key = box.dataset.key;
+      if (box.checked) rowLabelMenuDraftHidden = rowLabelMenuDraftHidden.filter(function (k) { return k !== key; });
+      else if (rowLabelMenuDraftHidden.indexOf(key) === -1) rowLabelMenuDraftHidden.push(key);
+      refreshRowLabelFilterMenuList();
+    });
+    menu.addEventListener("input", function (e) {
+      if (e.target.id !== "rlm-search-input") return;
+      rowLabelMenuSearch = e.target.value;
+      refreshRowLabelFilterMenuList();
+    });
+    menu.addEventListener("keydown", function (e) { e.stopPropagation(); });
+  }
+
+  // Klick irgendwo außerhalb schließt das offene Dropdown/Menü wieder — Klicks
+  // auf das Dropdown/Menü selbst oder die auslösende Zelle (öffnen/schließen es
+  // gezielt via eigenem Handler) werden hier bewusst ignoriert.
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".filter-dropdown") && !e.target.closest(".filter-value-cell")) closeFilterDropdown();
+    if (!e.target.closest(".rowlabel-filter-menu") && !e.target.closest(".rowlabel-filter-cell")) closeRowLabelFilterMenu();
   });
 
   function positionEmptyOverlay(canvas) {
@@ -1625,7 +1853,21 @@
       var data = getFilteredData();
       var hasValues = valueFields.length > 0;
 
+      // Über das Zeilenbeschriftungen-Menü ausgeblendete Kombinationen wirken
+      // wie ein echter Filter: die betroffenen Datenzeilen fallen schon hier
+      // heraus, bevor Gruppierung/Aggregation/Summen darauf rechnen.
+      if (rowFields.length && rowLabelHidden.length) {
+        var rlHiddenSet = {};
+        rowLabelHidden.forEach(function (k) { rlHiddenSet[k] = true; });
+        data = data.filter(function (d) {
+          var key = rowFields.map(function (f) { return fieldValue(f, d, dateGroupLevels).sort; }).join(" | ");
+          return !rlHiddenSet[key];
+        });
+      }
+
       var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
+      if (rowLabelSortDir === "asc") rowCombos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
+      else if (rowLabelSortDir === "desc") rowCombos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
       var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
       if (hasValues) {
@@ -1664,7 +1906,7 @@
         // nicht leer, sondern zeigt "Zeilenbeschriftungen" mit Filterknopf.
         var headerRow2 = [{
           header: true,
-          cls: "rowlabel pivot-header-row",
+          cls: "rowlabel pivot-header-row" + (rowFields.length ? " rowlabel-filter-cell" : ""),
           html: rowFields.length ? 'Zeilenbeschriftungen <span class="pivot-filter-btn"></span>' : ""
         }];
         columnMeta.forEach(function (cm) {
@@ -1815,10 +2057,18 @@
   document.getElementById("sheet-canvas").addEventListener("click", function (e) {
     var filterCell = e.target.closest(".filter-value-cell");
     if (filterCell) {
+      closeRowLabelFilterMenu();
       openFilterDropdown(filterCell, filterCell.dataset.filterField);
       return;
     }
+    var rowLabelCell = e.target.closest(".rowlabel-filter-cell");
+    if (rowLabelCell) {
+      closeFilterDropdown();
+      openRowLabelFilterMenu(rowLabelCell);
+      return;
+    }
     closeFilterDropdown();
+    closeRowLabelFilterMenu();
     var cell = e.target.closest(".sheet-cell--value");
     if (cell) activateCell(cell);
   });
@@ -1930,6 +2180,8 @@
     zones = { filter: [], columns: [], rows: [], values: [] };
     dateGroupLevels = {};
     filterSelections = {};
+    rowLabelHidden = [];
+    rowLabelSortDir = null;
     selectedField = null;
     selectedFieldZone = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
