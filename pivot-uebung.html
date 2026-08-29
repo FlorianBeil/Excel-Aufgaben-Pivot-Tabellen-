@@ -181,6 +181,45 @@
     display: block;
   }
 
+  /* ---------- Filter-Bereich: auswählbar, öffnet ein echtes Dropdown ---------- */
+  .filter-value-cell {
+    cursor: pointer;
+  }
+  .filter-value-cell:hover {
+    background: #cfe0f2 !important;
+  }
+  .filter-caret {
+    font-size: 0.7em;
+    color: var(--excel-green-dark);
+  }
+
+  .filter-dropdown {
+    position: absolute;
+    z-index: 5;
+    min-width: 140px;
+    max-width: 220px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--grid-gray);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+  }
+
+  .filter-dropdown__item {
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .filter-dropdown__item:hover {
+    background: var(--excel-green-tint);
+  }
+  .filter-dropdown__item.active {
+    background: var(--excel-blue-tint);
+    font-weight: 600;
+  }
+
   table.sheet-table {
     border-collapse: collapse;
     /* Kein width:100% — sonst zwingt das die Spalten, sich auf die volle
@@ -821,7 +860,9 @@
     { header: true, cls: "rowlabel", html: "Region" },
     { header: true, html: "Umsatz" }
   ];
-  sourceHeaderRow.sticky = true;
+  // Bewusst nicht fixiert (kein .sticky): ein echtes, unformatiertes
+  // Arbeitsblatt friert beim Scrollen keine Inhaltszeilen ein, nur die
+  // Spaltenbuchstaben-/Zeilennummern-Chrome bleibt sichtbar (siehe unten).
   sourceRows.push(sourceHeaderRow);
   DATA.forEach(function (row) {
     sourceRows.push([
@@ -1007,6 +1048,10 @@
     } else {
       zones[zoneKey] = zones[zoneKey].filter(function (f) { return f !== fieldName; });
     }
+    // Ein Feld, das den Filter-Bereich verlässt, nimmt seine gewählte
+    // Filterauswahl mit — sonst würde sie beim erneuten Ablegen "unsichtbar"
+    // fortbestehen.
+    if (zoneKey === "filter") delete filterSelections[fieldName];
   }
 
   function addFieldToZone(zoneKey, fieldName) {
@@ -1392,6 +1437,83 @@
     });
   }
 
+  // ---------- Filter-Bereich: auswählbar/echt filternd ----------
+  // fieldName -> ausgewähltes Label (String) oder kein Eintrag = "(Alle)".
+  var filterSelections = {};
+
+  function filterFieldLabel(fieldName, raw) {
+    if (FIELDS[fieldName].type === "date") return formatDate(raw);
+    if (FIELDS[fieldName].type === "number") return formatCurrency(raw);
+    return String(raw);
+  }
+
+  function uniqueFilterValues(fieldName) {
+    var seen = {};
+    var out = [];
+    DATA.forEach(function (d) {
+      var raw = d[fieldName];
+      var label = filterFieldLabel(fieldName, raw);
+      if (!seen[label]) { seen[label] = true; out.push({ raw: raw, label: label }); }
+    });
+    out.sort(function (a, b) {
+      if (FIELDS[fieldName].type !== "text") return a.raw < b.raw ? -1 : a.raw > b.raw ? 1 : 0;
+      return a.label.localeCompare(b.label, "de");
+    });
+    return out;
+  }
+
+  // Wendet die aktuell im Filter-Bereich gewählten Werte tatsächlich auf die
+  // Datengrundlage an — nicht nur kosmetisch, die ganze Pivot-Berechnung
+  // (Gruppierung, Aggregation, Summen) rechnet mit dieser gefilterten Menge.
+  function getFilteredData() {
+    if (!zones.filter.length) return DATA;
+    return DATA.filter(function (d) {
+      return zones.filter.every(function (ff) {
+        var sel = filterSelections[ff];
+        return !sel || filterFieldLabel(ff, d[ff]) === sel;
+      });
+    });
+  }
+
+  function closeFilterDropdown() {
+    var dd = document.getElementById("filter-dropdown");
+    if (dd) dd.remove();
+  }
+
+  function openFilterDropdown(cell, fieldName) {
+    closeFilterDropdown();
+    var canvas = document.getElementById("sheet-canvas");
+    var current = filterSelections[fieldName];
+    var values = uniqueFilterValues(fieldName);
+    var html = '<div class="filter-dropdown" id="filter-dropdown">' +
+      '<div class="filter-dropdown__item' + (!current ? " active" : "") + '" data-value="">(Alle)</div>' +
+      values.map(function (v) {
+        return '<div class="filter-dropdown__item' + (current === v.label ? " active" : "") + '" data-value="' + escapeAttr(v.label) + '">' + v.label + "</div>";
+      }).join("") +
+      "</div>";
+    canvas.insertAdjacentHTML("beforeend", html);
+    var dd = document.getElementById("filter-dropdown");
+    dd.style.left = cell.offsetLeft + "px";
+    dd.style.top = (cell.offsetTop + cell.offsetHeight) + "px";
+    dd.addEventListener("click", function (e) {
+      var item = e.target.closest(".filter-dropdown__item");
+      if (!item) return;
+      e.stopPropagation();
+      if (item.dataset.value) filterSelections[fieldName] = item.dataset.value;
+      else delete filterSelections[fieldName];
+      closeFilterDropdown();
+      renderPivot();
+    });
+  }
+
+  // Klick irgendwo außerhalb schließt das offene Dropdown wieder — Klicks auf
+  // das Dropdown selbst oder die Filter-Zelle (öffnet/schließt es gezielt via
+  // eigenem Handler) werden hier bewusst ignoriert.
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".filter-dropdown") || e.target.closest(".filter-value-cell")) return;
+    closeFilterDropdown();
+  });
+
   function positionEmptyOverlay(canvas) {
     var anchor = canvas.querySelector(".pivot-anchor-cell");
     var overlay = document.getElementById("pivot-empty-overlay");
@@ -1414,52 +1536,52 @@
     var rowFields = zones.rows;
     var colFields = zones.columns;
     var valueFields = zones.values;
-    var pivotRows, pivotColCount;
+    var filterFields = zones.filter;
+    var pivotRows = [];
+    var pivotColCount = 1;
     var showEmptyOverlay = false;
 
+    // Filter-Bereich: immer zuerst aufgebaut, unabhängig davon, ob sonst schon
+    // Zeilen/Spalten/Werte gewählt sind — soll schon sichtbar (und nutzbar)
+    // sein, sobald ein Feld dort abgelegt wird, genau wie in echtem Excel.
+    // Eine Zeile "Feldname | ausgewählter Wert" je Filterfeld, plus eine
+    // Leerzeile als Abstand; alles darunter rückt entsprechend nach unten.
+    // Die Wert-Zelle ist klickbar (filter-value-cell) und öffnet ein
+    // Dropdown mit den tatsächlichen Werten dieses Felds.
+    filterFields.forEach(function (ff) {
+      var label = filterSelections[ff] || "(Alle)";
+      var frow = [
+        { header: true, cls: "rowlabel pivot-header-row", html: ff },
+        {
+          header: true,
+          cls: "pivot-header-row filter-value-cell",
+          html: label + ' <span class="filter-caret">▾</span>',
+          attrs: ' data-filter-field="' + escapeAttr(ff) + '"'
+        }
+      ];
+      pivotRows.push(frow);
+    });
+    if (filterFields.length) pivotRows.push([]);
+    var rowOffset = filterFields.length ? filterFields.length + 1 : 0;
+
     if (rowFields.length === 0 && colFields.length === 0) {
-      // Komplett leeres Blatt: zunächst nur eine Ankerzelle — wie viele weitere
-      // leere Spalten dahinter nötig sind, um den sichtbaren Platz bis zum
-      // Feldbereich zu füllen, wird nach dem ersten Render gemessen und ergänzt
-      // (siehe unten), statt eine feste Anzahl zu erraten.
-      pivotColCount = 1;
+      // Sonst komplett leeres Blatt: zunächst nur eine Ankerzelle — wie viele
+      // weitere leere Spalten dahinter nötig sind, um den sichtbaren Platz
+      // bis zum Feldbereich zu füllen, wird nach dem ersten Render gemessen
+      // und ergänzt (siehe unten), statt eine feste Anzahl zu erraten.
+      pivotColCount = Math.max(1, filterFields.length ? 2 : 1);
       var blankRow = [];
       for (var bc = 0; bc < pivotColCount; bc++) {
         blankRow.push(bc === 0 ? { html: "", cls: "pivot-anchor-cell" } : { html: "" });
       }
-      // Bewusst bei Index 1 (Arbeitsblatt-Zeile 2) statt 0: Zeile 1 fällt sonst mit
-      // der fixierten, grau hinterlegten Kopfzeile der Quelldaten zusammen — die
-      // Ankerzelle (und damit "PivotTable1" darüber) würde dahinter verschwinden.
-      pivotRows = [];
-      pivotRows[1] = blankRow;
+      pivotRows[rowOffset] = blankRow;
       showEmptyOverlay = true;
     } else {
-      var data = DATA;
+      var data = getFilteredData();
       var hasValues = valueFields.length > 0;
-      var filterFields = zones.filter;
 
       var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
       var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
-
-      pivotRows = [];
-
-      // Filter-Bereich: eine Zeile "Feldname | (Alle)" je Filterfeld, plus eine
-      // Leerzeile als Abstand — genau wie in echtem Excel. Alles darunter
-      // (Kopf-/Datenzeilen) rückt dafür entsprechend nach unten.
-      filterFields.forEach(function (ff) {
-        // Gleiche blaue Füllung wie die Pivot-Kopfzeile, aber bewusst NICHT
-        // fixiert: die erste Filterzeile teilt sich ihre Arbeitsblatt-Zeile
-        // mit der (fixierten) Quelldaten-Kopfzeile in A–C, daher reicht kein
-        // row.sticky=false — "filter-cell" hebt die geerbte Fixierung gezielt
-        // für diese beiden Zellen wieder auf.
-        var frow = [
-          { header: true, cls: "rowlabel pivot-header-row filter-cell", html: ff },
-          { header: true, cls: "pivot-header-row filter-cell", html: "(Alle)" }
-        ];
-        pivotRows.push(frow);
-      });
-      if (filterFields.length) pivotRows.push([]);
-      var rowOffset = filterFields.length ? filterFields.length + 1 : 0;
 
       if (hasValues) {
         // Physische Spalten der Pivot-Ausgabe (ohne die Zeilenbeschriftungs-
@@ -1489,7 +1611,6 @@
           headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: cc.label });
         });
         if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: "Gesamt" });
-        headerRow1.sticky = true;
         pivotRows.push(headerRow1);
 
         // Kopfzeile 2: Wertefeld/Aggregation je Spalte
@@ -1497,7 +1618,6 @@
         columnMeta.forEach(function (cm) {
           headerRow2.push({ header: true, cls: "pivot-header-row", html: cm.vf.agg + " von " + cm.vf.field });
         });
-        headerRow2.sticky = true;
         pivotRows.push(headerRow2);
 
         // Datenzeilen
@@ -1545,7 +1665,6 @@
 
         var skHeaderRow = [{ header: true, cls: "rowlabel pivot-header-row", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
         skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, cls: "pivot-header-row", html: cc.label }); });
-        skHeaderRow.sticky = true;
         pivotRows.push(skHeaderRow);
 
         if (rowFields.length) {
@@ -1609,6 +1728,12 @@
   }
 
   document.getElementById("sheet-canvas").addEventListener("click", function (e) {
+    var filterCell = e.target.closest(".filter-value-cell");
+    if (filterCell) {
+      openFilterDropdown(filterCell, filterCell.dataset.filterField);
+      return;
+    }
+    closeFilterDropdown();
     var cell = e.target.closest(".sheet-cell--value");
     if (cell) activateCell(cell);
   });
@@ -1719,6 +1844,7 @@
   document.getElementById("btn-reset").addEventListener("click", function () {
     zones = { filter: [], columns: [], rows: [], values: [] };
     dateGroupLevels = {};
+    filterSelections = {};
     selectedField = null;
     selectedFieldZone = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
