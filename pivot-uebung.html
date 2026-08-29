@@ -53,7 +53,7 @@
     padding: 0.6rem 1.5rem;
   }
 
-  .site-header__inner { max-width: 1180px; margin: 0 auto; display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+  .site-header__inner { max-width: 1500px; margin: 0 auto; display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
   .site-header__inner h1 { font-size: 1.1rem; font-weight: 600; }
   .site-header__badge {
     font-size: 0.75rem;
@@ -62,7 +62,7 @@
     border-radius: 999px;
   }
 
-  main { max-width: 1180px; margin: 0 auto; padding: 0.7rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  main { max-width: 1500px; margin: 0 auto; padding: 0.7rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
 
   .card {
     background: var(--surface);
@@ -1611,6 +1611,7 @@
           headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: cc.label });
         });
         if (colFields.length) headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: "Gesamt" });
+        headerRow1.push({ html: "", cls: "sheet-gap" }); // Trennspalte zum Feldbereich rechts
         pivotRows.push(headerRow1);
 
         // Kopfzeile 2: Wertefeld/Aggregation je Spalte
@@ -1618,6 +1619,7 @@
         columnMeta.forEach(function (cm) {
           headerRow2.push({ header: true, cls: "pivot-header-row", html: cm.vf.agg + " von " + cm.vf.field });
         });
+        headerRow2.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(headerRow2);
 
         // Datenzeilen
@@ -1637,6 +1639,7 @@
               attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
             });
           });
+          dataRow.push({ html: "", cls: "sheet-gap" });
           pivotRows.push(dataRow);
         });
 
@@ -1653,34 +1656,53 @@
             attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
           });
         });
+        totalRow.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(totalRow);
 
-        pivotColCount = 1 + columnMeta.length;
+        // +1: eine sichtbare Leerspalte als Abstand zum Feldbereich rechts.
+        pivotColCount = 1 + columnMeta.length + 1;
       } else {
         // Noch kein Wertefeld: zeige trotzdem sofort die Gruppierungs-
         // Beschriftungen an (Zeilen- und/oder Spaltenwerte) — genau wie es
         // echtes Excel schon tut, bevor überhaupt ein Wertefeld gewählt wurde.
         var skColCombos = colFields.length ? colCombos : [];
-        pivotColCount = 1 + skColCombos.length;
+        // +1: eine sichtbare Leerspalte als Abstand zum Feldbereich rechts.
+        pivotColCount = 1 + skColCombos.length + 1;
 
         var skHeaderRow = [{ header: true, cls: "rowlabel pivot-header-row", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
         skColCombos.forEach(function (cc) { skHeaderRow.push({ header: true, cls: "pivot-header-row", html: cc.label }); });
+        skHeaderRow.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(skHeaderRow);
 
         if (rowFields.length) {
           rowCombos.forEach(function (rc) {
             var skRow = [{ cls: "rowlabel", html: rc.label }];
             skColCombos.forEach(function () { skRow.push({ html: "" }); });
+            skRow.push({ html: "", cls: "sheet-gap" });
             pivotRows.push(skRow);
           });
           var skTotalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
           skColCombos.forEach(function () { skTotalRow.push({ cls: "cell-total", html: "" }); });
+          skTotalRow.push({ html: "", cls: "sheet-gap" });
           pivotRows.push(skTotalRow);
         }
       }
 
       pivotColCount = Math.max(pivotColCount, filterFields.length ? 2 : 1);
     }
+
+    // Filter-/Leerzeilen wurden ganz oben gebaut, bevor pivotColCount final feststand,
+    // und haben daher u.U. weniger Zellen als die Kopf-/Datenzeilen (z.B. fehlt sonst
+    // die Gitterlinie der neuen Trennspalte in der Filterzeile). Hier einmalig auf die
+    // finale Breite auffüllen.
+    pivotRows.forEach(function (row) {
+      if (!row) return;
+      var used = row.reduce(function (sum, c) { return sum + (c.colspan || 1); }, 0);
+      while (used < pivotColCount) {
+        row.push({ html: "" });
+        used++;
+      }
+    });
 
     var tableModifierClass = showEmptyOverlay ? "sheet-table--uniform-cols" : "";
     canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) +
