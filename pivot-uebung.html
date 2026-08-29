@@ -188,10 +188,31 @@
   .filter-value-cell:hover {
     background: #cfe0f2 !important;
   }
-  .filter-caret {
-    font-size: 0.7em;
-    color: var(--excel-green-dark);
+  /* Echter Excel-Filterknopf statt eines reinen Textpfeils: kleines
+     weißes Quadrat mit Rahmen und einem dunklen Dreieck darin — sowohl
+     im Filter-Bereich (neben "(Alle)") als auch neben "Zeilenbeschriftungen"
+     in der Pivot-Kopfzeile. */
+  .pivot-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 5px;
+    border: 1px solid #8896A3;
+    border-radius: 2px;
+    background: #fff;
+    vertical-align: -3px;
   }
+  .pivot-filter-btn::after {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 3px solid transparent;
+    border-right: 3px solid transparent;
+    border-top: 4px solid #43494F;
+  }
+  .filter-value-cell:hover .pivot-filter-btn { border-color: var(--excel-green-dark); }
 
   .filter-dropdown {
     position: absolute;
@@ -1579,7 +1600,7 @@
         {
           header: true,
           cls: "pivot-header-row filter-value-cell",
-          html: label + ' <span class="filter-caret">▾</span>',
+          html: label + ' <span class="pivot-filter-btn"></span>',
           attrs: ' data-filter-field="' + escapeAttr(ff) + '"'
         }
       ];
@@ -1638,8 +1659,14 @@
         headerRow1.push({ html: "", cls: "sheet-gap" }); // Trennspalte zum Feldbereich rechts
         pivotRows.push(headerRow1);
 
-        // Kopfzeile 2: Wertefeld/Aggregation je Spalte
-        var headerRow2 = [{ header: true, cls: "rowlabel pivot-header-row", html: "" }];
+        // Kopfzeile 2: Wertefeld/Aggregation je Spalte. Die Zelle links davon
+        // (unter dem Zeilenfeldnamen aus Kopfzeile 1) bleibt in echtem Excel
+        // nicht leer, sondern zeigt "Zeilenbeschriftungen" mit Filterknopf.
+        var headerRow2 = [{
+          header: true,
+          cls: "rowlabel pivot-header-row",
+          html: rowFields.length ? 'Zeilenbeschriftungen <span class="pivot-filter-btn"></span>' : ""
+        }];
         columnMeta.forEach(function (cm) {
           headerRow2.push({ header: true, cls: "pivot-header-row", html: cm.vf.agg + " von " + cm.vf.field });
         });
