@@ -895,14 +895,24 @@
     for (var i = 0; i < maxRows; i++) {
       var row = [];
       var src = srcRows[i];
-      row = row.concat(src || [{ colspan: SOURCE_COL_COUNT, html: "" }]);
+      // Einzelne leere Zellen statt einer einzigen colspan-Zelle — sonst fehlen
+      // innerhalb der Spanne die vertikalen Gitternetzlinien (jede Zelle malt
+      // nur ihren eigenen rechten/unteren Rand, siehe table.sheet-table th/td).
+      if (src) {
+        row = row.concat(src);
+      } else {
+        for (var sc = 0; sc < SOURCE_COL_COUNT; sc++) row.push({ html: "" });
+      }
       // Eigene Klasse für die Lückenspalte: bleibt immer weiß, auch wenn die
       // Zeile als Ganzes (über Kopf-/Filterzeilen-Zugehörigkeit) grau oder
       // blau eingefärbt wird — die Lücke selbst gehört zu keinem der beiden.
       for (var g = 0; g < GAP_COLS; g++) row.push({ html: "", cls: "sheet-gap" });
       var pv = pvRows[i];
-      if (pv) row = row.concat(pv);
-      else if (pvColCount) row.push({ colspan: pvColCount, html: "" });
+      if (pv) {
+        row = row.concat(pv);
+      } else if (pvColCount) {
+        for (var pc = 0; pc < pvColCount; pc++) row.push({ html: "" });
+      }
       if ((src && src.sticky) || (pv && pv.sticky)) row.sticky = true;
       if (pv && pv.cls) row.cls = pv.cls;
       else if (src && src.cls) row.cls = src.cls;
