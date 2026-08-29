@@ -1697,16 +1697,22 @@
 
     // Filter-/Leerzeilen wurden ganz oben gebaut, bevor pivotColCount final feststand,
     // und haben daher u.U. weniger Zellen als die Kopf-/Datenzeilen (z.B. fehlt sonst
-    // die Gitterlinie der neuen Trennspalte in der Filterzeile). Hier einmalig auf die
-    // finale Breite auffüllen.
-    pivotRows.forEach(function (row) {
-      if (!row) return;
-      var used = row.reduce(function (sum, c) { return sum + (c.colspan || 1); }, 0);
-      while (used < pivotColCount) {
-        row.push({ html: "" });
-        used++;
-      }
-    });
+    // die Gitterlinie der neuen Trennspalte in der Filterzeile). Auf die jeweils
+    // aktuelle Breite auffüllen — auch wiederverwendet, wenn pivotColCount später
+    // durch die dynamische Spaltenerweiterung im leeren Zustand nochmal wächst,
+    // sonst fehlen dort Zellen (und damit vertikale Gitterlinien) in der Filter-/
+    // Leerzeile.
+    function padPivotRowsTo(count) {
+      pivotRows.forEach(function (row) {
+        if (!row) return;
+        var used = row.reduce(function (sum, c) { return sum + (c.colspan || 1); }, 0);
+        while (used < count) {
+          row.push({ html: "" });
+          used++;
+        }
+      });
+    }
+    padPivotRowsTo(pivotColCount);
 
     var tableModifierClass = showEmptyOverlay ? "sheet-table--uniform-cols" : "";
     canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) +
@@ -1732,8 +1738,10 @@
         if (missingWidth > colWidth) {
           var extraCols = Math.ceil(missingWidth / colWidth);
           pivotColCount += extraCols;
-          var lastRow = pivotRows[pivotRows.length - 1];
-          for (var ec = 0; ec < extraCols; ec++) lastRow.push({ html: "" });
+          // Alle Zeilen (inkl. Filter-/Leerzeile), nicht nur die letzte, auf die
+          // neue Breite auffüllen — sonst fehlen dort Gitterlinien für die neuen
+          // Spalten.
+          padPivotRowsTo(pivotColCount);
           canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) + emptyPivotOverlayHtml();
           fixStickyOffsets(canvas);
           positionEmptyOverlay(canvas);
