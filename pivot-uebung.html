@@ -1569,7 +1569,7 @@
       // weitere leere Spalten dahinter nötig sind, um den sichtbaren Platz
       // bis zum Feldbereich zu füllen, wird nach dem ersten Render gemessen
       // und ergänzt (siehe unten), statt eine feste Anzahl zu erraten.
-      pivotColCount = Math.max(1, filterFields.length ? 2 : 1);
+      pivotColCount = Math.max(1, filterFields.length ? 3 : 1);
       var blankRow = [];
       for (var bc = 0; bc < pivotColCount; bc++) {
         blankRow.push(bc === 0 ? { html: "", cls: "pivot-anchor-cell" } : { html: "" });
@@ -1688,7 +1688,11 @@
         }
       }
 
-      pivotColCount = Math.max(pivotColCount, filterFields.length ? 2 : 1);
+      // Die Filterzeile braucht selbst 2 Spalten (Feldname + Wert) — plus eine
+      // dahinter für die Trennspalte, sonst frisst der Filterwert die Lücke auf,
+      // wenn die eigentliche Pivot-Ausgabe (z.B. nur Zeilen, keine Werte) schmaler
+      // als 3 Spalten ist.
+      pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1);
     }
 
     // Filter-/Leerzeilen wurden ganz oben gebaut, bevor pivotColCount final feststand,
