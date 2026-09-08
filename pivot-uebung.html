@@ -485,15 +485,19 @@
   .pivot-fields-panel {
     width: 280px;
     flex-shrink: 0;
+    /* Nicht auf die volle Arbeitsblatt-Höhe strecken (.excel-body setzt sonst
+       align-items:stretch) — das Panel soll nur so hoch sein wie sein eigener
+       Inhalt, damit man Feldliste + alle vier Bereiche kompakt auf einen
+       Blick sieht statt in einer halbleeren, hochgezogenen Box. */
+    align-self: flex-start;
     background: #fff; /* wie das Arbeitsblatt links — nur die Trennlinie grenzt ab, keine Flächenfarbe */
     border-left: 1px solid var(--grid-gray);
     padding: 0.5rem 0.7rem 0.6rem;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    /* Gleiche Höhe wie das Arbeitsblatt daneben — großzügig genug, damit alle
-       vier Bereiche (Filter/Spalten/Zeilen/Werte) auch mit befüllten Zonen auf
-       einen Blick sichtbar sind, ohne dafür scrollen zu müssen. */
+    /* Obergrenze für den Fall vieler/langer Zonen-Chips — verhindert, dass das
+       Panel dann höher als das Arbeitsblatt daneben würde. */
     max-height: 450px;
     overflow-y: auto;
   }
@@ -673,8 +677,10 @@
     border: 1.5px dashed var(--grid-gray);
     border-radius: 8px;
     background: var(--header-gray);
-    padding: 0.55rem 0.65rem;
-    min-height: 74px;
+    /* Größe kommt bewusst von .area-box__drop (kompakte Zonen) — diese Regel
+       steht im Stylesheet danach und hätte sonst mit eigenem padding/
+       min-height das kompakte Maß wieder überschrieben (Altlast aus einer
+       früheren, größeren Zonen-Darstellung). */
     transition: background 0.15s, border-color 0.15s;
   }
 
