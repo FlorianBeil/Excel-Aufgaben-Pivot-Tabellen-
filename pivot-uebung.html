@@ -1168,33 +1168,11 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  var rand = mulberry32(20260101);
-
-  var REGIONS = ["Nord", "Süd", "Ost", "West"];
-  var REGION_BASE = { Nord: 900, "Süd": 1100, Ost: 700, West: 1250 };
-
-  function serialToDate(days) {
-    // 2026-01-01 + days
-    var d = new Date(Date.UTC(2026, 0, 1));
-    d.setUTCDate(d.getUTCDate() + days);
-    return d;
-  }
 
   function formatDate(d) {
     var dd = String(d.getUTCDate()).padStart(2, "0");
     var mm = String(d.getUTCMonth() + 1).padStart(2, "0");
     return dd + "." + mm + "." + d.getUTCFullYear();
-  }
-
-  var DATA = [];
-  var dayCount = (Date.UTC(2027, 0, 1) - Date.UTC(2026, 0, 1)) / 86400000; // 365
-  for (var i = 0; i < dayCount; i++) {
-    var date = serialToDate(i);
-    var region = REGIONS[Math.floor(rand() * REGIONS.length)];
-    var base = REGION_BASE[region];
-    var umsatz = Math.round(base + (rand() - 0.4) * 700);
-    if (umsatz < 50) umsatz = 50;
-    DATA.push({ Datum: date, Region: region, Umsatz: umsatz });
   }
 
   function formatCurrency(n) {
@@ -1259,28 +1237,50 @@
     return html;
   }
 
-  // ---------- Quelldaten als Zeilen aufbereiten (Spalten A–C des gemeinsamen Blatts) ----------
-  var SOURCE_COL_COUNT = 3; // Datum, Region, Umsatz
+  // ---------- Quelldaten als Zeilen aufbereiten (Spalten A–… des gemeinsamen Blatts) ----------
+  // Jede Übung kann ihre eigene Beispieltabelle mitbringen (siehe
+  // EXERCISES[].dataset weiter unten) — DATA/FIELDS/SOURCE_COL_COUNT/
+  // sourceRows sind deshalb mutable und werden von loadDataset() befüllt,
+  // nicht mehr einmalig fest verdrahtet.
   var GAP_COLS = 1; // eine leere Spalte zwischen Quelldaten und Pivot-Ausgabe, wie in echten Excel-Blättern üblich
-  var PIVOT_COL_OFFSET = SOURCE_COL_COUNT + GAP_COLS; // physische Spalten, ab denen die Pivot-Ausgabe beginnt
+  var DATA, FIELDS, SOURCE_COL_COUNT, PIVOT_COL_OFFSET, sourceRows;
 
-  var sourceRows = [];
-  var sourceHeaderRow = [
-    { header: true, cls: "rowlabel", html: "Datum" },
-    { header: true, cls: "rowlabel", html: "Region" },
-    { header: true, html: "Umsatz" }
-  ];
-  // Bewusst nicht fixiert (kein .sticky): ein echtes, unformatiertes
-  // Arbeitsblatt friert beim Scrollen keine Inhaltszeilen ein, nur die
-  // Spaltenbuchstaben-/Zeilennummern-Chrome bleibt sichtbar (siehe unten).
-  sourceRows.push(sourceHeaderRow);
-  DATA.forEach(function (row) {
-    sourceRows.push([
-      { cls: "rowlabel", html: formatDate(row.Datum) },
-      { cls: "rowlabel", html: row.Region },
-      { html: formatCurrency(row.Umsatz) }
-    ]);
-  });
+  // Baut die Quelldaten-Zeilen (inkl. Kopfzeile) generisch aus dataset.columns
+  // + dataset.fields + dataset.rows auf — funktioniert für jede Spaltenzahl/
+  // -reihenfolge, nicht nur für Datum/Region/Umsatz.
+  function buildSourceRows(dataset) {
+    function cellFor(col, html) {
+      var cell = { html: html };
+      if (dataset.fields[col].type !== "number") cell.cls = "rowlabel";
+      return cell;
+    }
+    var rows = [dataset.columns.map(function (col) {
+      var cell = cellFor(col, col);
+      cell.header = true;
+      return cell;
+    })];
+    // Bewusst nicht fixiert (kein .sticky): ein echtes, unformatiertes
+    // Arbeitsblatt friert beim Scrollen keine Inhaltszeilen ein, nur die
+    // Spaltenbuchstaben-/Zeilennummern-Chrome bleibt sichtbar (siehe unten).
+    dataset.rows.forEach(function (row) {
+      rows.push(dataset.columns.map(function (col) {
+        return cellFor(col, filterFieldLabel(col, row[col]));
+      }));
+    });
+    return rows;
+  }
+
+  // Wechselt die komplette Datengrundlage (Quelldaten-Tabelle + Feldliste)
+  // auf ein anderes Dataset — aufgerufen beim Start und jedes Mal, wenn eine
+  // Übung mit einer anderen Beispieltabelle geöffnet wird.
+  function loadDataset(name) {
+    var dataset = DATASETS[name]();
+    DATA = dataset.rows;
+    FIELDS = dataset.fields;
+    SOURCE_COL_COUNT = dataset.columns.length;
+    PIVOT_COL_OFFSET = SOURCE_COL_COUNT + GAP_COLS;
+    sourceRows = buildSourceRows(dataset);
+  }
 
   // Fügt Quelldaten- und Pivot-Zeilen spaltenweise zu EINEM Tabellenblatt
   // zusammen (gemeinsame Zeilennummerierung, eine Lückenspalte dazwischen) —
@@ -1317,12 +1317,74 @@
     return merged;
   }
 
-  // ---------- Feld-Definitionen ----------
-  var FIELDS = {
-    Datum: { icon: "📅", type: "date" },
-    Region: { icon: "🌍", type: "text" },
-    Umsatz: { icon: "💰", type: "number" }
-  };
+  // ---------- Beispieltabellen je Übung ----------
+  // "sales": Tagesumsätze 2025+2026 (Datum/Region/Land/Umsatz) — Standard für
+  // die meisten Übungen; zwei volle Jahre, damit eine Jahres-Gruppierung
+  // (Übung "je Jahr") überhaupt mehr als eine Gruppe ergibt.
+  function buildSalesDataset() {
+    var rand = mulberry32(20260101);
+    var REGIONS = ["Nord", "Süd", "Ost", "West"];
+    var REGION_BASE = { Nord: 900, "Süd": 1100, Ost: 700, West: 1250 };
+    // Jede Region liegt für diese Übungen fest in einem Land — ergibt eine
+    // echte zweistufige Land→Region-Hierarchie für die "nach Land"-Übung.
+    var REGION_LAND = { Nord: "Deutschland", West: "Deutschland", Ost: "Österreich", "Süd": "Österreich" };
+    function serialToDate(days) {
+      var d = new Date(Date.UTC(2025, 0, 1));
+      d.setUTCDate(d.getUTCDate() + days);
+      return d;
+    }
+    var rows = [];
+    var dayCount = (Date.UTC(2027, 0, 1) - Date.UTC(2025, 0, 1)) / 86400000; // 730: zwei volle Jahre
+    for (var i = 0; i < dayCount; i++) {
+      var date = serialToDate(i);
+      var region = REGIONS[Math.floor(rand() * REGIONS.length)];
+      var base = REGION_BASE[region];
+      var umsatz = Math.round(base + (rand() - 0.4) * 700);
+      if (umsatz < 50) umsatz = 50;
+      rows.push({ Datum: date, Region: region, Land: REGION_LAND[region], Umsatz: umsatz });
+    }
+    return {
+      fields: {
+        Datum: { icon: "📅", type: "date" },
+        Region: { icon: "🌍", type: "text" },
+        Land: { icon: "🏳️", type: "text" },
+        Umsatz: { icon: "💰", type: "number" }
+      },
+      columns: ["Datum", "Region", "Land", "Umsatz"],
+      rows: rows
+    };
+  }
+
+  // "vertrieb": einzelne Verkaufsabschlüsse je Vertriebler/Kanal — eigene,
+  // kleinere Beispieltabelle für die Übung zum Filtern nach einem Kanal.
+  function buildVertriebDataset() {
+    var rand = mulberry32(20260215);
+    var VERTRIEBLER = ["Anna", "Ben", "Clara", "David", "Emma"];
+    var KANAELE = ["Online", "Filiale", "Telefon"];
+    var VERTRIEBLER_BASE = { Anna: 500, Ben: 650, Clara: 420, David: 580, Emma: 700 };
+    var KANAL_FACTOR = { Online: 1.15, Filiale: 0.9, Telefon: 0.75 };
+    var rows = [];
+    VERTRIEBLER.forEach(function (v) {
+      KANAELE.forEach(function (k) {
+        var n = 8 + Math.floor(rand() * 5); // 8–12 Abschlüsse je Vertriebler/Kanal
+        for (var i = 0; i < n; i++) {
+          var betrag = Math.round(VERTRIEBLER_BASE[v] * KANAL_FACTOR[k] * (0.6 + rand() * 0.8));
+          rows.push({ Vertriebler: v, Kanal: k, Umsatz: betrag });
+        }
+      });
+    });
+    return {
+      fields: {
+        Vertriebler: { icon: "🧑‍💼", type: "text" },
+        Kanal: { icon: "🛒", type: "text" },
+        Umsatz: { icon: "💰", type: "number" }
+      },
+      columns: ["Vertriebler", "Kanal", "Umsatz"],
+      rows: rows
+    };
+  }
+
+  var DATASETS = { sales: buildSalesDataset, vertrieb: buildVertriebDataset };
 
   var AGGS_NUMERIC = ["Summe", "Anzahl", "Mittelwert", "Min", "Max"];
   var AGGS_OTHER = ["Anzahl"];
@@ -1374,10 +1436,11 @@
     {
       id: "umsatz-je-region",
       level: "anfaenger",
+      dataset: "sales",
       category: "gruppierung",
       short: "Gruppiere den Umsatz nach Region.",
       title: "Umsatz je Region auswerten",
-      intro: "<p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>" +
+      intro: "<p>Du hast eine Tabelle mit Tagesumsätzen aus 2025 und 2026 (Spalten: Datum, Region, Land, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>" +
         '<p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>',
       hints: [
         "Das Feld, nach dem gruppiert werden soll, gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong> — beides ergibt eine inhaltlich richtige, nur transponierte Tabelle).",
@@ -1396,14 +1459,15 @@
     {
       id: "anzahl-verkaeufe-je-region",
       level: "anfaenger",
+      dataset: "sales",
       category: "aggregation",
-      short: "Zähle, an wie vielen Tagen je Region ein Umsatz vorliegt.",
-      title: "Anzahl Verkaufstage je Region",
-      intro: "<p>Für wie viele Tage liegt je Region überhaupt ein Umsatz vor? Erstelle eine Pivot-Tabelle, die das je Region auswertet.</p>" +
+      short: "Zähle, wie viele Verkäufe es je Region gibt.",
+      title: "Anzahl Verkäufe je Region",
+      intro: "<p>Jede Zeile der Tabelle ist ein einzelner Verkauf. Wie viele Verkäufe gab es je Region? Erstelle eine Pivot-Tabelle, die das auswertet.</p>" +
         '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Achte genau darauf, was gezählt werden soll.</p>',
       hints: [
         "Das gruppierende Feld gehört wieder in den Bereich <strong>Zeilen</strong>.",
-        "Excel wählt bei einem Zahlenfeld im Bereich „Werte“ standardmäßig „Summe“ — hier ist aber nicht die Summe des Umsatzes gefragt, sondern wie viele Tage (Zeilen) es je Region gibt.",
+        "Excel wählt bei einem Zahlenfeld im Bereich „Werte“ standardmäßig „Summe“ — hier ist aber nicht die Summe des Umsatzes gefragt, sondern die <strong>Anzahl</strong> der Verkäufe (Zeilen) je Region.",
         "Über das Dropdown im „Werte“-Chip lässt sich die Aggregation von Summe auf eine andere Option umstellen."
       ],
       solution: {
@@ -1415,12 +1479,80 @@
       }
     },
     {
+      id: "umsatz-je-region-nach-jahr",
+      level: "anfaenger",
+      dataset: "sales",
+      category: "datumsgruppierung",
+      short: "Schlüssele den Umsatz nach Region und Jahr auf.",
+      title: "Umsatz je Region, aufgeteilt nach Jahren",
+      intro: "<p>Die Tabelle enthält Umsätze aus zwei Jahren (2025 und 2026). Erstelle eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zeigt — <strong>zusätzlich aufgeteilt nach Jahr</strong>.</p>" +
+        '<p class="goal">Diesmal brauchst du zwei Gruppierungsfelder gleichzeitig: eins für die Region, eins für das Jahr.</p>',
+      hints: [
+        "Region gehört in <strong>Zeilen</strong> (oder Spalten), das Datumsfeld in die jeweils andere der beiden Bereiche — beide Anordnungen sind richtig.",
+        "Sobald das Datumsfeld in Zeilen/Spalten liegt, erscheinen Schalter für Jahr / Quartal / Monat / Tag — hier reicht <strong>nur Jahr</strong>.",
+        "Im Bereich „Werte“ ist wie gewohnt „Umsatz“ mit „Summe“ gefragt."
+      ],
+      solution: {
+        rows: ["Region"],
+        columns: ["Datum"],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }],
+        rowsColsInterchangeable: true,
+        dateGroupLevels: { Datum: ["jahr"] }
+      }
+    },
+    {
+      id: "umsatz-pro-vertriebler-kanal",
+      level: "anfaenger",
+      dataset: "vertrieb",
+      category: "filter",
+      short: "Filtere nach einem Kanal, werte dann je Vertriebler aus.",
+      title: "Umsatz pro Vertriebler, aber nur für einen Kanal",
+      intro: "<p>Für diese Aufgabe hast du eine andere Beispieltabelle: einzelne Verkaufsabschlüsse mit Vertriebler, Kanal und Umsatz. Berechne den <strong>Umsatz je Vertriebler</strong> — aber nur für den Kanal <strong>„Online“</strong>, alle anderen Kanäle zählen hier nicht mit.</p>" +
+        '<p class="goal">Nutze den Bereich „Filter“, um nur die Zeilen mit Kanal „Online“ einzubeziehen.</p>',
+      hints: [
+        "Das Feld <strong>Kanal</strong> gehört in den Bereich <strong>Filter</strong>.",
+        "Klicke danach auf das Filtersymbol neben „(Alle)“ und wähle gezielt <strong>„Online“</strong> aus — nicht „(Alle)“ stehen lassen.",
+        "Vertriebler gehört in <strong>Zeilen</strong>, Umsatz mit „Summe“ in <strong>Werte</strong>."
+      ],
+      solution: {
+        rows: ["Vertriebler"],
+        columns: [],
+        filter: ["Kanal"],
+        filterValues: { Kanal: "Online" },
+        values: [{ field: "Umsatz", agg: "Summe" }]
+      }
+    },
+    {
+      id: "umsatz-je-region-nach-land",
+      level: "anfaenger",
+      dataset: "sales",
+      category: "gruppierung",
+      short: "Schlüssele den Umsatz nach Region und Land auf.",
+      title: "Umsatz je Region, aufgeschlüsselt nach Land",
+      intro: "<p>Die Regionen liegen in unterschiedlichen Ländern. Erstelle eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zeigt — <strong>zusätzlich aufgeschlüsselt nach Land</strong>.</p>" +
+        '<p class="goal">Auch hier brauchst du wieder zwei Gruppierungsfelder gleichzeitig: Region und Land.</p>',
+      hints: [
+        "Region gehört in <strong>Zeilen</strong> (oder Spalten), Land in die jeweils andere der beiden Bereiche — beide Anordnungen sind richtig.",
+        "Bei Land und Region ist keine zusätzliche Gruppierungsstufe nötig — nur bei Datumsfeldern gibt es Jahr/Quartal/Monat/Tag.",
+        "Im Bereich „Werte“ ist wie gewohnt „Umsatz“ mit „Summe“ gefragt."
+      ],
+      solution: {
+        rows: ["Region"],
+        columns: ["Land"],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }],
+        rowsColsInterchangeable: true
+      }
+    },
+    {
       id: "umsatz-je-quartal",
       level: "fortgeschritten",
+      dataset: "sales",
       category: "datumsgruppierung",
-      short: "Fasse den Jahresumsatz nach Quartal zusammen.",
+      short: "Fasse den Umsatz nach Quartal zusammen.",
       title: "Umsatz je Quartal",
-      intro: "<p>365 einzelne Tageswerte sind unübersichtlich. Fasse den Umsatz für das Jahr 2026 stattdessen <strong>je Quartal</strong> zusammen.</p>" +
+      intro: "<p>Die Tabelle enthält Tageswerte aus zwei Jahren — einzeln betrachtet unübersichtlich. Fasse den Umsatz stattdessen <strong>je Quartal</strong> zusammen (unabhängig vom Jahr: Q1–Q4).</p>" +
         '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Liegt ein Datumsfeld in „Zeilen“ oder „Spalten“, kannst du direkt darunter einstellen, nach welcher Zeiteinheit gruppiert wird.</p>',
       hints: [
         "Das Datumsfeld gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong>).",
@@ -1607,6 +1739,7 @@
     document.getElementById("back-to-overview").hidden = false;
 
     currentExercise = ex;
+    loadDataset(ex.dataset || "sales");
     resetExerciseState();
     renderExerciseText();
     renderFieldList();
@@ -2483,7 +2616,7 @@
       (showEmptyOverlay ? emptyPivotOverlayHtml() : "");
     fixStickyOffsets(canvas);
     document.getElementById("sheet-caption").textContent =
-      "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen, 2026) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
+      "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
 
     if (showEmptyOverlay) {
       positionEmptyOverlay(canvas);
@@ -2564,6 +2697,34 @@
     return as.length === bs.length && as.every(function (v, i) { return v === bs[i]; });
   }
 
+  // Wendet eine feste Filter-Zuordnung (Feld -> gewählter Wert) auf Daten an —
+  // gebraucht, um sowohl die Schüler- als auch die Musterlösung mit der
+  // jeweils tatsächlich gefilterten Datenmenge zu berechnen (nicht nur zu
+  // prüfen, ob das richtige Feld im Filter-Bereich liegt, sondern auch, ob
+  // der richtige Wert ausgewählt wurde).
+  function applyFilterValues(data, filterFields, filterValueMap) {
+    if (!filterFields.length) return data;
+    return data.filter(function (d) {
+      return filterFields.every(function (ff) {
+        var sel = filterValueMap[ff];
+        return !sel || filterFieldLabel(ff, d[ff]) === sel;
+      });
+    });
+  }
+
+  // Alle Permutationen eines (kurzen) Arrays — für rowsColsInterchangeable
+  // bei zwei Gruppierungsfeldern: "Region in Zeilen + Land in Spalten" soll
+  // genauso als richtig gelten wie "Land in Zeilen + Region in Spalten".
+  function permutations(arr) {
+    if (arr.length <= 1) return [arr];
+    var result = [];
+    arr.forEach(function (item, i) {
+      var rest = arr.slice(0, i).concat(arr.slice(i + 1));
+      permutations(rest).forEach(function (p) { result.push([item].concat(p)); });
+    });
+    return result;
+  }
+
   function computeFlatResultSet(groupFields, valueFields, data, levelsMap) {
     var combos = computeGroupCombos(groupFields, data, levelsMap);
     return combos.map(function (combo) {
@@ -2615,10 +2776,23 @@
     }
 
     var studentFields = zones.rows.concat(zones.columns);
-    var targetFields = sol.rows.concat(sol.columns);
-    var studentResult = computeFlatResultSet(studentFields, zones.values, DATA, dateGroupLevels);
-    var targetResult = computeFlatResultSet(targetFields, sol.values, DATA, sol.dateGroupLevels || {});
-    var comparison = resultSetsEqual(studentResult, targetResult);
+    var targetFieldsBase = sol.rows.concat(sol.columns);
+    var studentData = applyFilterValues(DATA, zones.filter, filterSelections);
+    var targetData = applyFilterValues(DATA, sol.filter, sol.filterValues || {});
+    var studentResult = computeFlatResultSet(studentFields, zones.values, studentData, dateGroupLevels);
+
+    // Bei rowsColsInterchangeable zählt jede Reihenfolge der Gruppierungs-
+    // felder als richtig (Zeilen/Spalten dürfen vertauscht UND ihre Felder
+    // in beliebiger Kombination verteilt sein) — daher gegen alle
+    // Permutationen der Musterlösung vergleichen und die beste nehmen.
+    var targetFieldOrders = sol.rowsColsInterchangeable ? permutations(targetFieldsBase) : [targetFieldsBase];
+    var comparison = { equal: false, reason: "count" };
+    for (var oi = 0; oi < targetFieldOrders.length; oi++) {
+      var targetResult = computeFlatResultSet(targetFieldOrders[oi], sol.values, targetData, sol.dateGroupLevels || {});
+      var cmp = resultSetsEqual(studentResult, targetResult);
+      comparison = cmp;
+      if (cmp.equal) break;
+    }
 
     if (!comparison.equal) {
       if (comparison.reason === "count") {
@@ -2626,7 +2800,14 @@
         var hint = hasDateField
           ? " Prüfe, welche Felder du zur Gruppierung genutzt hast bzw. welche Gruppierungsstufe (Jahr/Quartal/Monat/Tag) beim Datumsfeld eingestellt ist."
           : " Prüfe, welche Felder du zur Gruppierung genutzt hast.";
-        return { correct: false, messages: ["Deine Gruppierung ergibt eine andere Anzahl an Gruppen als erwartet (" + studentResult.length + " statt " + targetResult.length + ")." + hint] };
+        // Gleiche Anzahl Gruppen, aber unterschiedliche Kombinationen (z.B.
+        // nur Region statt Region+Land) — dann passt die Formulierung
+        // "andere Anzahl" nicht, auch wenn intern derselbe Vergleichspfad
+        // (reason "count") greift.
+        var countMsg = studentResult.length === targetResult.length
+          ? "Deine Gruppierung ergibt zwar gleich viele Gruppen, aber nicht dieselben Kombinationen wie erwartet."
+          : "Deine Gruppierung ergibt eine andere Anzahl an Gruppen als erwartet (" + studentResult.length + " statt " + targetResult.length + ").";
+        return { correct: false, messages: [countMsg + hint] };
       }
       return { correct: false, messages: ["Die berechneten Werte stimmen noch nicht mit der Musterlösung überein. Prüfe Feld <em>und</em> Aggregation im Bereich „Werte“."] };
     }
@@ -2738,6 +2919,7 @@
     showOverview();
   });
 
+  loadDataset(currentExercise.dataset || "sales");
   renderLevelTabs();
   renderResetButton();
   renderExercisePicker();
