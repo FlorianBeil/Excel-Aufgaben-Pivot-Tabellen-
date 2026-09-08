@@ -539,6 +539,23 @@
   table.sheet-table td { text-align: right; }
   table.sheet-table .rowlabel { text-align: left; font-weight: 500; }
 
+  /* Gruppierte Zeilen (zwei Felder in derselben Zone, z.B. Region + Land
+     beide in Zeilen): eingerückte, ein-/ausklappbare Gliederung wie in
+     echtem Excel statt einer flach kombinierten "Region / Land"-Zeile. */
+  table.sheet-table .rowlabel.row-indent-1 { padding-left: 1.5rem; }
+  table.sheet-table .rowlabel.row-indent-2 { padding-left: 2.6rem; }
+  table.sheet-table .rowlabel.row-indent-3 { padding-left: 3.7rem; }
+  table.sheet-table .rowlabel.row-group { font-weight: 700; }
+  table.sheet-table .sheet-cell--value.row-group-subtotal { font-weight: 700; }
+  .row-group-toggle {
+    display: inline-block;
+    width: 0.9em;
+    cursor: pointer;
+    color: var(--text-muted);
+    user-select: none;
+  }
+  .row-group-toggle:hover { color: var(--excel-green-dark); }
+
   table.sheet-table .sheet-rownum, table.sheet-table .sheet-corner {
     min-width: 0;
     width: 1%;
@@ -1657,7 +1674,7 @@
     }
     // Ein zusätzliches/neues Zeilenfeld ändert den Kombi-Schlüsselraum —
     // alte Zeilenbeschriftungen-Filter-/Sortierauswahl passt dann nicht mehr.
-    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; }
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; }
   }
 
   function removeFromZoneState(zoneKey, fieldName) {
@@ -1672,7 +1689,7 @@
     if (zoneKey === "filter") delete filterSelections[fieldName];
     // Ändert sich die Zeilen-Zone, sind alte Zeilenbeschriftungen-Kombi-Keys
     // (Sortierung/ausgeblendete Werte) für das neue Feld-Set bedeutungslos.
-    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; }
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; }
   }
 
   function addFieldToZone(zoneKey, fieldName) {
@@ -1720,6 +1737,7 @@
     filterSelections = {};
     rowLabelHidden = [];
     rowLabelSortDir = null;
+    collapsedRowGroups = {};
     selectedField = null;
     selectedFieldZone = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
@@ -2096,6 +2114,50 @@
     return fields.map(function (f) { return fieldValue(f, row, levelsMap).sort; }).join(" | ") === combo.key;
   }
 
+  // Baut die Anzeige-Zeilen für den Zeilen-Bereich auf. Bei nur einem Feld
+  // ist das Ergebnis flach (eine "Zeile" je Wert, wie bisher). Liegen zwei
+  // oder mehr Felder gleichzeitig in Zeilen, wird stattdessen rekursiv eine
+  // ein-/ausklappbare Gliederung gebaut: das erste Feld bildet die äußeren
+  // Gruppen (mit Zwischensumme + Auf-/Zuklapp-Pfeil), jedes weitere Feld eine
+  // Ebene tiefer — genau wie ein "kompaktes" Excel-PivotTable-Layout mit
+  // mehreren Feldern im selben Bereich.
+  function buildRowDisplayList(fields, data, levelsMap, sortDir) {
+    if (!fields.length) return [];
+    function recurse(fieldIdx, subData, parentKey, parentParts) {
+      var field = fields[fieldIdx];
+      var combos = computeGroupCombos([field], subData, levelsMap);
+      if (fieldIdx === 0 && sortDir === "asc") combos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
+      else if (fieldIdx === 0 && sortDir === "desc") combos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
+      var isLast = fieldIdx === fields.length - 1;
+      var out = [];
+      combos.forEach(function (combo) {
+        var comboData = subData.filter(function (d) { return rowMatchesCombo(d, [field], combo, levelsMap); });
+        var fullKey = (parentKey ? parentKey + "‖" : "") + combo.key;
+        var parts = parentParts.concat([{ field: field, label: combo.label }]);
+        if (isLast) {
+          out.push({ level: fieldIdx, isGroup: false, label: combo.label, key: fullKey, data: comboData, parts: parts });
+        } else {
+          var collapsed = !!collapsedRowGroups[fullKey];
+          out.push({ level: fieldIdx, isGroup: true, label: combo.label, key: fullKey, data: comboData, collapsed: collapsed, parts: parts });
+          if (!collapsed) out = out.concat(recurse(fieldIdx + 1, comboData, fullKey, parts));
+        }
+      });
+      return out;
+    }
+    return recurse(0, data, "", []);
+  }
+
+  function rowDisplayCellCls(entry) {
+    return "rowlabel" + (entry.level > 0 ? " row-indent-" + entry.level : "") + (entry.isGroup ? " row-group" : "");
+  }
+
+  function rowDisplayLabelHtml(entry) {
+    var toggle = entry.isGroup
+      ? '<span class="row-group-toggle" data-group-key="' + escapeAttr(entry.key) + '">' + (entry.collapsed ? "▸" : "▾") + "</span> "
+      : "";
+    return toggle + escapeAttr(entry.label);
+  }
+
   function fieldAxisLabel(fieldName, levelsMap) {
     if (FIELDS[fieldName].type !== "date") return fieldName;
     var chosen = (levelsMap && levelsMap[fieldName] && levelsMap[fieldName].length) ? levelsMap[fieldName] : DEFAULT_DATE_LEVELS;
@@ -2259,6 +2321,11 @@
   // dann aber echt auf die Pivot-Berechnung (nicht nur kosmetisch).
   var rowLabelHidden = [];
   var rowLabelSortDir = null; // null | "asc" | "desc"
+  // Liegen mehrere Felder gleichzeitig in Zeilen (z.B. Region UND Land),
+  // werden sie als ein-/ausklappbare Gliederung angezeigt statt als flach
+  // kombinierte "Region / Land"-Zeile. Key -> true, wenn diese Gruppe
+  // eingeklappt ist (siehe buildRowDisplayList()).
+  var collapsedRowGroups = {};
   // Während das Menü offen ist: Arbeitskopie der Auswahl, erst bei "OK" in
   // rowLabelHidden übernommen — wie in echtem Excel (Abbrechen verwirft sie).
   var rowLabelMenuDraftHidden = null;
@@ -2469,9 +2536,9 @@
         });
       }
 
-      var rowCombos = computeGroupCombos(rowFields, data, dateGroupLevels);
-      if (rowLabelSortDir === "asc") rowCombos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
-      else if (rowLabelSortDir === "desc") rowCombos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
+      // Bei einem Zeilenfeld eine flache Liste (wie bisher), bei zwei oder
+      // mehr eine ein-/ausklappbare Gliederung (siehe buildRowDisplayList()).
+      var rowDisplay = buildRowDisplayList(rowFields, data, dateGroupLevels, rowLabelSortDir);
       var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
       if (hasValues) {
@@ -2489,7 +2556,7 @@
         }
 
         var firstDataRow = rowOffset + 3; // + die beiden Kopfzeilen
-        var lastDataRow = rowOffset + 2 + rowCombos.length;
+        var lastDataRow = rowOffset + 2 + rowDisplay.length;
         var totalRowNum = lastDataRow + 1;
         var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
 
@@ -2519,20 +2586,21 @@
         headerRow2.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(headerRow2);
 
-        // Datenzeilen
-        rowCombos.forEach(function (rc, rIdx) {
+        // Datenzeilen — bei mehreren Zeilenfeldern inkl. ein-/ausklappbarer
+        // Gruppenzeilen (mit Zwischensumme statt eines Einzelwerts).
+        rowDisplay.forEach(function (entry, rIdx) {
           var worksheetRow = firstDataRow + rIdx;
-          var rowMatched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, rc, dateGroupLevels); });
-          var dataRow = [{ cls: "rowlabel", html: rc.label }];
+          var rowMatched = entry.data;
+          var dataRow = [{ cls: rowDisplayCellCls(entry), html: rowDisplayLabelHtml(entry) }];
           columnMeta.forEach(function (cm, cIdx) {
             var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
             var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
             var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
-            var filterParts = rc.parts.concat(cm.combo ? cm.combo.parts : []);
+            var filterParts = entry.parts.concat(cm.combo ? cm.combo.parts : []);
             var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
             dataRow.push({
               html: formatAggResult(cm.vf.agg, cm.vf.field, val),
-              cls: "sheet-cell--value",
+              cls: "sheet-cell--value" + (entry.isGroup ? " row-group-subtotal" : ""),
               attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
             });
           });
@@ -2572,8 +2640,8 @@
         pivotRows.push(skHeaderRow);
 
         if (rowFields.length) {
-          rowCombos.forEach(function (rc) {
-            var skRow = [{ cls: "rowlabel", html: rc.label }];
+          rowDisplay.forEach(function (entry) {
+            var skRow = [{ cls: rowDisplayCellCls(entry), html: rowDisplayLabelHtml(entry) }];
             skColCombos.forEach(function () { skRow.push({ html: "" }); });
             skRow.push({ html: "", cls: "sheet-gap" });
             pivotRows.push(skRow);
@@ -2659,6 +2727,13 @@
   }
 
   document.getElementById("sheet-canvas").addEventListener("click", function (e) {
+    var groupToggle = e.target.closest(".row-group-toggle");
+    if (groupToggle) {
+      var key = groupToggle.dataset.groupKey;
+      collapsedRowGroups[key] = !collapsedRowGroups[key];
+      renderPivot();
+      return;
+    }
     var filterCell = e.target.closest(".filter-value-cell");
     if (filterCell) {
       closeRowLabelFilterMenu();
