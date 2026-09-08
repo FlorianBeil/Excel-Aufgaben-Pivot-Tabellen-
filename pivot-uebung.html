@@ -1639,10 +1639,13 @@
     // für die Profi-Übung "Anzahl unterschiedlicher Kunden je Region", bei der
     // ANZAHL (zählt jeden Verkauf) und DISKRETE ANZAHL (zählt jeden Kunden nur
     // einmal) bewusst unterschiedliche Ergebnisse liefern müssen.
+    // Bewusst kurze Einwort-Namen (statt "Vierjahreszeiten GmbH" o.ä.) — lange
+    // Firmennamen ließen die Kunde-Spalte in manchen Browsern nicht zuverlässig
+    // breit genug werden und überschnitten sich dann mit der Umsatz-Spalte.
     var REGION_KUNDEN = {
-      DACH: ["Alpenblick GmbH", "Bergmann AG", "Rheinwerk KG", "Schwarzwald Handel", "Ostwind Systems", "Vierjahreszeiten GmbH"],
-      Benelux: ["Delta Logistik", "Fjord Trading", "Polderwerk NV", "Rotterdam Trade", "Grachten Handel", "Tulpen Import"],
-      Nordics: ["Nordlicht AS", "Baltic Trading", "Polarstern Oy", "Mitternachtssonne AB", "Rentier Logistik", "Aurora Trade"]
+      DACH: ["Alpenblick", "Bergmann", "Rheinwerk", "Schwarzwald", "Ostwind", "Alpenhof"],
+      Benelux: ["Delta", "Fjord", "Polderwerk", "Rotterdam", "Grachten", "Tulpen"],
+      Nordics: ["Nordlicht", "Baltic", "Polarstern", "Mitternacht", "Rentier", "Aurora"]
     };
     function serialToDate(days) {
       var d = new Date(Date.UTC(2025, 0, 1));
@@ -1759,10 +1762,13 @@
   // "Top 10" (hier auf 5 gesetzt).
   function buildKundenDataset() {
     var rand = mulberry32(20260410);
+    // Bewusst kurze Einwort-Namen — lange Firmennamen ließen die Kunde-Spalte
+    // in manchen Browsern nicht zuverlässig breit genug werden und
+    // überschnitten sich dann mit der Umsatz-Spalte.
     var KUNDEN = [
-      "Alpenblick GmbH", "Bergmann AG", "Carea Systems", "Delta Logistik",
-      "Elbe Handels KG", "Fjord Trading", "Greenfield Retail", "Hansa Kontor",
-      "Isarwerk GmbH", "Jupiter Solutions", "Klarwasser AG", "Lindgrün Handel"
+      "Alpenblick", "Bergmann", "Carea", "Delta",
+      "Elbwerk", "Fjord", "Greenfield", "Hansa",
+      "Isarwerk", "Jupiter", "Klarwasser", "Lindgrün"
     ];
     // Feste Basis-Umsätze statt rein zufälliger Werte, damit die Top 5 klar
     // und eindeutig sind (keine knappen Gleichstände an Platz 5/6).
