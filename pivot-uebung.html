@@ -1340,11 +1340,15 @@
   // (Übung "je Jahr") überhaupt mehr als eine Gruppe ergibt.
   function buildSalesDataset() {
     var rand = mulberry32(20260101);
-    var REGIONS = ["Nord", "Süd", "Ost", "West"];
-    var REGION_BASE = { Nord: 900, "Süd": 1100, Ost: 700, West: 1250 };
+    // Regionsnamen sind bewusst pro Land eigenständig (nicht die bloßen
+    // Himmelsrichtungen Nord/Ost/Süd/West für beide Länder) — sonst wirkt es
+    // unplausibel, dass z.B. "West" mal zu Deutschland, mal zu Österreich
+    // gehören könnte.
+    var REGIONS = ["Norddeutschland", "Westdeutschland", "Ostösterreich", "Südösterreich"];
+    var REGION_BASE = { Norddeutschland: 900, Westdeutschland: 1250, "Ostösterreich": 700, "Südösterreich": 1100 };
     // Jede Region liegt für diese Übungen fest in einem Land — ergibt eine
     // echte zweistufige Land→Region-Hierarchie für die "nach Land"-Übung.
-    var REGION_LAND = { Nord: "Deutschland", West: "Deutschland", Ost: "Österreich", "Süd": "Österreich" };
+    var REGION_LAND = { Norddeutschland: "Deutschland", Westdeutschland: "Deutschland", "Ostösterreich": "Österreich", "Südösterreich": "Österreich" };
     function serialToDate(days) {
       var d = new Date(Date.UTC(2025, 0, 1));
       d.setUTCDate(d.getUTCDate() + days);
