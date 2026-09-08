@@ -89,6 +89,13 @@
 
   main { max-width: 1500px; margin: 0 auto; padding: 0.7rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
 
+  /* #overview-view/#exercise-workspace sind jeweils EIN Kind von <main> —
+     main's eigenes gap wirkt also nur zwischen den beiden (sich gegenseitig
+     ausschließenden) Bereichen, nicht innerhalb. Eigener, großzügigerer
+     Abstand zwischen Hero/Tabs/Karten bzw. Aufgabe/Tabelle/Aktionen. */
+  #overview-view { display: flex; flex-direction: column; gap: 1.6rem; }
+  #exercise-workspace { display: flex; flex-direction: column; gap: 1.3rem; }
+
   .card {
     background: var(--surface);
     border: 1px solid var(--border-color);
