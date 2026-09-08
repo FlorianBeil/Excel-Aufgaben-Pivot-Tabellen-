@@ -473,6 +473,21 @@
     gap: 0.4rem;
     padding: 0 0.7rem;
   }
+  /* Wertefilter: eingeklapptes Mini-Formular (Top/Unten N nach Wertefeld) */
+  .rlm-vf-badge { color: var(--excel-green); }
+  .rlm-valuefilter { padding: 0.3rem 0.7rem 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .rlm-vf-row { display: flex; align-items: center; gap: 0.35rem; }
+  .rlm-vf-label { color: var(--text-muted); font-size: 0.76rem; }
+  .rlm-vf-row select, .rlm-vf-field-select, .rlm-vf-row input {
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    border: 1px solid var(--grid-gray);
+    border-radius: 3px;
+    padding: 0.2rem 0.35rem;
+  }
+  .rlm-vf-row input { width: 3.5rem; }
+  .rlm-vf-field-select { width: 100%; }
+  .rlm-vf-actions { display: flex; gap: 0.4rem; }
   .rlm-btn {
     border: 1px solid var(--grid-gray);
     background: #fff;
@@ -808,9 +823,11 @@
     min-width: 0;
   }
 
-  .zone-chip--multiline .agg-select {
+  .zone-chip--multiline .agg-select,
+  .zone-chip--multiline .showas-select {
     width: 100%;
   }
+  .zone-chip--multiline .showas-select { margin-top: 0.25rem; }
 
   .dategroup-pills {
     display: flex;
@@ -836,7 +853,8 @@
     color: #fff;
   }
 
-  .zone-chip .agg-select {
+  .zone-chip .agg-select,
+  .zone-chip .showas-select {
     font-family: var(--font-body);
     font-size: 0.72rem;
     color: var(--text-primary);
@@ -1268,7 +1286,7 @@
   function buildSourceRows(dataset) {
     function cellFor(col, html) {
       var cell = { html: html };
-      if (dataset.fields[col].type !== "number") cell.cls = "rowlabel";
+      if (!isNumericType(dataset.fields[col].type)) cell.cls = "rowlabel";
       return cell;
     }
     var rows = [dataset.columns.map(function (col) {
@@ -1408,7 +1426,76 @@
     };
   }
 
-  var DATASETS = { sales: buildSalesDataset, vertrieb: buildVertriebDataset };
+  // "produkte": einzelne Verkäufe mit Kategorie, Menge, Rabatt (%) und
+  // Umsatz — für Übungen zu Aggregation (Mittelwert), mehreren Wertefeldern
+  // nebeneinander und "Werte anzeigen als: % vom Gesamtergebnis".
+  function buildProdukteDataset() {
+    var rand = mulberry32(20260301);
+    var KATEGORIEN = ["Elektronik", "Möbel", "Kleidung", "Sport", "Bücher"];
+    var KAT_STUECKPREIS = { Elektronik: 150, "Möbel": 300, Kleidung: 60, Sport: 90, "Bücher": 20 };
+    // Bewusst unterschiedliche Rabatt-Niveaus je Kategorie, damit "Ø Rabatt
+    // je Kategorie" später auch wirklich unterschiedliche Werte liefert.
+    var KAT_RABATT_BASE = { Elektronik: 14, "Möbel": 8, Kleidung: 20, Sport: 12, "Bücher": 4 };
+    function serialToDate(days) {
+      var d = new Date(Date.UTC(2025, 0, 1));
+      d.setUTCDate(d.getUTCDate() + days);
+      return d;
+    }
+    var rows = [];
+    var dayCount = (Date.UTC(2027, 0, 1) - Date.UTC(2025, 0, 1)) / 86400000; // zwei volle Jahre
+    for (var i = 0; i < dayCount; i++) {
+      var date = serialToDate(i);
+      var salesToday = 1 + Math.floor(rand() * 2); // 1–2 Verkäufe pro Tag, sonst zu viele Zeilen
+      for (var s = 0; s < salesToday; s++) {
+        var kat = KATEGORIEN[Math.floor(rand() * KATEGORIEN.length)];
+        var menge = 1 + Math.floor(rand() * 8);
+        var stueckpreis = KAT_STUECKPREIS[kat] * (0.8 + rand() * 0.4);
+        var rabatt = Math.max(0, Math.round(KAT_RABATT_BASE[kat] + (rand() - 0.5) * 10));
+        var umsatz = Math.round(stueckpreis * menge * (1 - rabatt / 100));
+        rows.push({ Datum: date, Kategorie: kat, Menge: menge, Rabatt: rabatt, Umsatz: umsatz });
+      }
+    }
+    return {
+      fields: {
+        Datum: { icon: "📅", type: "date" },
+        Kategorie: { icon: "🏷️", type: "text" },
+        Menge: { icon: "📦", type: "number" },
+        Rabatt: { icon: "💸", type: "percent" },
+        Umsatz: { icon: "💰", type: "number" }
+      },
+      columns: ["Datum", "Kategorie", "Menge", "Rabatt", "Umsatz"],
+      rows: rows
+    };
+  }
+
+  // "kunden": Jahresumsatz je Kunde — für die Übung zum Wertefilter
+  // "Top 10" (hier auf 5 gesetzt).
+  function buildKundenDataset() {
+    var rand = mulberry32(20260410);
+    var KUNDEN = [
+      "Alpenblick GmbH", "Bergmann AG", "Carea Systems", "Delta Logistik",
+      "Elbe Handels KG", "Fjord Trading", "Greenfield Retail", "Hansa Kontor",
+      "Isarwerk GmbH", "Jupiter Solutions", "Klarwasser AG", "Lindgrün Handel"
+    ];
+    // Feste Basis-Umsätze statt rein zufälliger Werte, damit die Top 5 klar
+    // und eindeutig sind (keine knappen Gleichstände an Platz 5/6).
+    var BASE = [420000, 385000, 340000, 298000, 265000, 210000, 175000, 150000, 120000, 95000, 72000, 48000];
+    var rows = [];
+    KUNDEN.forEach(function (kunde, idx) {
+      var umsatz = Math.round(BASE[idx] * (0.94 + rand() * 0.12));
+      rows.push({ Kunde: kunde, Umsatz: umsatz });
+    });
+    return {
+      fields: {
+        Kunde: { icon: "🏢", type: "text" },
+        Umsatz: { icon: "💰", type: "number" }
+      },
+      columns: ["Kunde", "Umsatz"],
+      rows: rows
+    };
+  }
+
+  var DATASETS = { sales: buildSalesDataset, vertrieb: buildVertriebDataset, produkte: buildProdukteDataset, kunden: buildKundenDataset };
 
   var AGGS_NUMERIC = ["Summe", "Anzahl", "Mittelwert", "Min", "Max"];
   var AGGS_OTHER = ["Anzahl"];
@@ -1425,12 +1512,21 @@
   // Feld in Zeilen/Spalten liegt); fehlt ein Eintrag, gilt DEFAULT_DATE_LEVELS.
   var dateGroupLevels = {};
 
+  // "percent" (z.B. ein Rabatt-%-Feld) rechnet sich genauso wie "number" —
+  // nur die Anzeige unterscheidet sich (% statt €, siehe formatAggResult).
+  function isNumericType(type) {
+    return type === "number" || type === "percent";
+  }
+
   function aggOptionsFor(fieldName) {
-    return FIELDS[fieldName].type === "number" ? AGGS_NUMERIC : AGGS_OTHER;
+    return isNumericType(FIELDS[fieldName].type) ? AGGS_NUMERIC : AGGS_OTHER;
   }
 
   function defaultAgg(fieldName) {
-    return FIELDS[fieldName].type === "number" ? "Summe" : "Anzahl";
+    // Bewusst "Summe" als Default auch für %-Felder (nicht "Mittelwert") —
+    // das Summieren von Prozentwerten ergibt inhaltlich keinen Sinn, genau
+    // das soll die Übung "Aggregationsfunktion ändern" sichtbar machen.
+    return isNumericType(FIELDS[fieldName].type) ? "Summe" : "Anzahl";
   }
 
   function aggregate(agg, values) {
@@ -1443,8 +1539,18 @@
     return 0;
   }
 
-  function formatAggResult(agg, fieldName, value) {
+  function formatPercent(n) {
+    return n.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
+  }
+
+  // showAs: optionale "Werte anzeigen als"-Einstellung des Wertefelds
+  // (z.B. "percentOfTotal") — überschreibt die sonst vom Feldtyp bestimmte
+  // Darstellung, weil der Zahlenwert an dieser Stelle bereits ein
+  // Prozentanteil ist, keine Währung/Anzahl mehr.
+  function formatAggResult(agg, fieldName, value, showAs) {
+    if (showAs === "percentOfTotal") return formatPercent(value);
     if (agg === "Anzahl") return formatNumber(value);
+    if (FIELDS[fieldName].type === "percent") return formatPercent(Math.round(value * 10) / 10);
     if (FIELDS[fieldName].type === "number") return formatCurrency(Math.round(value * 100) / 100);
     return formatNumber(value);
   }
@@ -1591,6 +1697,118 @@
         rowsColsInterchangeable: true,
         dateGroupLevels: { Datum: ["quartal"] }
       }
+    },
+    {
+      id: "durchschnittlicher-rabatt-je-kategorie",
+      level: "fortgeschritten",
+      dataset: "produkte",
+      category: "aggregation",
+      short: "Ändere die Wertfeldeinstellung von Summe auf Mittelwert.",
+      title: "Durchschnittlicher Rabatt je Produktkategorie",
+      intro: "<p>Neue Beispieltabelle: einzelne Verkäufe mit Kategorie, Menge, Rabatt (in %) und Umsatz. Ermittle den <strong>durchschnittlichen Rabatt je Produktkategorie</strong>.</p>" +
+        '<p class="goal">Achte genau auf die Wertfeldeinstellung im Bereich „Werte“ — die Standardeinstellung ist hier die falsche.</p>',
+      hints: [
+        "Kategorie gehört in den Bereich <strong>Zeilen</strong>, Rabatt in den Bereich <strong>Werte</strong>.",
+        "Excel wählt für ein Zahlenfeld im Bereich „Werte“ standardmäßig „Summe“ — die Summe mehrerer Rabatt-Prozentsätze ergibt aber keinen sinnvollen Wert.",
+        "Stelle über das Dropdown im „Werte“-Chip stattdessen <strong>„Mittelwert“</strong> ein."
+      ],
+      solution: {
+        rows: ["Kategorie"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Rabatt", agg: "Mittelwert" }],
+        rowsColsInterchangeable: true
+      }
+    },
+    {
+      id: "umsatz-und-menge-je-kategorie-jahr",
+      level: "fortgeschritten",
+      dataset: "produkte",
+      category: "mehrere-wertefelder",
+      short: "Zwei Wertefelder gleichzeitig: Umsatz und Menge nebeneinander.",
+      title: "Umsatz und Menge nebeneinander, je Kategorie und Jahr",
+      intro: "<p>Zeige <strong>Umsatz UND Menge gleichzeitig</strong> nebeneinander an — aufgeschlüsselt nach Kategorie und Jahr.</p>" +
+        '<p class="goal">Ziehe diesmal <strong>zwei Felder</strong> in den Bereich „Werte“. Excel erzeugt daraus automatisch ein zusätzliches Feld „Σ Werte“, das die beiden Spaltengruppen nebeneinanderstellt.</p>',
+      hints: [
+        "Kategorie gehört in <strong>Zeilen</strong> (oder Spalten), das Datumsfeld in die jeweils andere der beiden Bereiche.",
+        "Sobald das Datumsfeld dort liegt, reicht die Gruppierungsstufe <strong>Jahr</strong>.",
+        "Ziehe sowohl <strong>Umsatz</strong> als auch <strong>Menge</strong> in den Bereich „Werte“ — beide mit „Summe“. Excel zeigt sie automatisch nebeneinander an, ohne dass du sie einzeln in Zeilen/Spalten verschieben musst."
+      ],
+      solution: {
+        rows: ["Kategorie"],
+        columns: ["Datum"],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }, { field: "Menge", agg: "Summe" }],
+        rowsColsInterchangeable: true,
+        dateGroupLevels: { Datum: ["jahr"] }
+      }
+    },
+    {
+      id: "umsatzanteil-je-kategorie-prozent",
+      level: "fortgeschritten",
+      dataset: "produkte",
+      category: "werteanzeige",
+      short: "„Werte anzeigen als“ statt Zellformatierung.",
+      title: "Umsatzanteil jeder Kategorie am Gesamtumsatz in Prozent",
+      intro: "<p>Zeige, wie viel Prozent jede Kategorie zum <strong>Gesamtumsatz</strong> beiträgt.</p>" +
+        '<p class="goal">Das ist keine reine Formatierungsfrage (ein Prozentzeichen anhängen reicht nicht) — nutze die Einstellung „Werte anzeigen als“ im „Werte“-Chip.</p>',
+      hints: [
+        "Kategorie gehört in <strong>Zeilen</strong>, Umsatz mit „Summe“ in <strong>Werte</strong>.",
+        "Im „Werte“-Chip gibt es unter der Aggregation ein zweites Dropdown: <strong>„Werte anzeigen als“</strong>.",
+        "Stelle es von „Normal“ auf <strong>„% vom Gesamtergebnis“</strong> um — Excel berechnet den Anteil dann selbst, du musst nichts manuell durch die Gesamtsumme teilen."
+      ],
+      solution: {
+        rows: ["Kategorie"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe", showAs: "percentOfTotal" }],
+        rowsColsInterchangeable: true
+      }
+    },
+    {
+      id: "umsatz-je-quartal-und-jahr",
+      level: "fortgeschritten",
+      dataset: "sales",
+      category: "datumsgruppierung",
+      short: "Warum Q1 2025 und Q1 2026 ohne das Jahr zusammenfallen.",
+      title: "Umsatz je Quartal — diesmal mit Jahr",
+      intro: "<p>In der vorherigen Übung „Umsatz je Quartal“ sind Q1 2025 und Q1 2026 im Ergebnis zu einem einzigen „Q1“ verschmolzen — die Tabelle enthält aber zwei Jahre. Erstelle die Pivot-Tabelle diesmal so, dass <strong>Jahr und Quartal gemeinsam</strong> die Gruppierung bilden.</p>" +
+        '<p class="goal">Ziehe das Datumsfeld wie zuvor in Zeilen oder Spalten — diesmal mit zwei aktiven Gruppierungsstufen gleichzeitig.</p>',
+      hints: [
+        "Das Datumsfeld gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong>).",
+        "Aktiviere darunter <strong>sowohl „Jahr“ als auch „Quartal“</strong> gleichzeitig (beide Schalter aktiv) — nicht nur einen davon.",
+        "Ohne das Jahr-Feld weiß Excel nicht, ob ein „Q1“ aus 2025 oder 2026 stammt, und addiert beide Jahre zu einer Gruppe zusammen — deshalb ergeben sich diesmal 8 statt 4 Gruppen."
+      ],
+      solution: {
+        rows: ["Datum"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }],
+        rowsColsInterchangeable: true,
+        dateGroupLevels: { Datum: ["jahr", "quartal"] }
+      }
+    },
+    {
+      id: "top5-umsatzstaerkste-kunden",
+      level: "fortgeschritten",
+      dataset: "kunden",
+      category: "wertefilter",
+      short: "Wertefilter „Top 10“ statt manuellem Ausblenden.",
+      title: "Die 5 umsatzstärksten Kunden",
+      intro: "<p>Neue Beispieltabelle: der Jahresumsatz je Kunde. Zeige nur die <strong>5 umsatzstärksten Kunden</strong>, absteigend sortiert.</p>" +
+        '<p class="goal">Blende die restlichen Kunden nicht einzeln manuell aus — nutze stattdessen den Wertefilter.</p>',
+      hints: [
+        "Kunde gehört in <strong>Zeilen</strong>, Umsatz mit „Summe“ in <strong>Werte</strong>.",
+        "Klicke auf das Filtersymbol neben „Zeilenbeschriftungen“ und öffne dort <strong>„Wertefilter“</strong>.",
+        "Stelle „Top“ und <strong>5</strong> ein (nach „Summe von Umsatz“) und klicke „Übernehmen“ — Excel zeigt automatisch nur die Top 5, absteigend sortiert, an."
+      ],
+      solution: {
+        rows: ["Kunde"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe" }],
+        valueFilter: { type: "top", n: 5, field: "Umsatz", agg: "Summe" }
+      }
     }
   ];
 
@@ -1681,7 +1899,7 @@
     }
     // Ein zusätzliches/neues Zeilenfeld ändert den Kombi-Schlüsselraum —
     // alte Zeilenbeschriftungen-Filter-/Sortierauswahl passt dann nicht mehr.
-    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; }
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; valueFilter = null; }
   }
 
   function removeFromZoneState(zoneKey, fieldName) {
@@ -1696,7 +1914,7 @@
     if (zoneKey === "filter") delete filterSelections[fieldName];
     // Ändert sich die Zeilen-Zone, sind alte Zeilenbeschriftungen-Kombi-Keys
     // (Sortierung/ausgeblendete Werte) für das neue Feld-Set bedeutungslos.
-    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; }
+    if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; valueFilter = null; }
   }
 
   function addFieldToZone(zoneKey, fieldName) {
@@ -1726,6 +1944,14 @@
     renderPivot();
   }
 
+  function setShowAs(fieldName, showAs) {
+    var entry = zones.values.find(function (v) { return v.field === fieldName; });
+    if (!entry) return;
+    if (showAs) entry.showAs = showAs;
+    else delete entry.showAs;
+    renderPivot();
+  }
+
   // ---------- Rendering: Aufgabentext ----------
   function renderExerciseText() {
     document.getElementById("task-title").textContent = "Aufgabe: " + currentExercise.title;
@@ -1745,6 +1971,8 @@
     rowLabelHidden = [];
     rowLabelSortDir = null;
     collapsedRowGroups = {};
+    valueFilter = null;
+    valueFilterFormOpen = false;
     selectedField = null;
     selectedFieldZone = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
@@ -1916,6 +2144,16 @@
           return '<option value="' + opt + '"' + sel + ">" + opt + "</option>";
         }).join("");
         aggControl = '<select class="agg-select" data-field="' + fieldName + '">' + options + "</select>";
+        // "Werte anzeigen als" — entspricht Excels gleichnamiger Einstellung:
+        // zeigt statt des Rohwerts den Anteil am Gesamtergebnis in Prozent.
+        var showAsOptions = [
+          { value: "", label: "Normal" },
+          { value: "percentOfTotal", label: "% vom Gesamtergebnis" }
+        ].map(function (o) {
+          var sel = (entry.showAs || "") === o.value ? " selected" : "";
+          return '<option value="' + o.value + '"' + sel + ">" + o.label + "</option>";
+        }).join("");
+        aggControl += '<select class="showas-select" data-field="' + fieldName + '">' + showAsOptions + "</select>";
       }
 
       var isDateField = showDateGroups && FIELDS[fieldName].type === "date";
@@ -1973,7 +2211,7 @@
         // Klicks auf Entfernen-Button, Aggregations-Dropdown oder Datums-Pills
         // werden von deren eigenen Handlern behandelt (stopPropagation) bzw.
         // sollen hier keine Verschiebe-Auswahl auslösen.
-        if (e.target.closest(".chip-remove") || e.target.closest(".agg-select") || e.target.closest(".dategroup-pills")) return;
+        if (e.target.closest(".chip-remove") || e.target.closest(".agg-select") || e.target.closest(".showas-select") || e.target.closest(".dategroup-pills")) return;
         var fieldName = chip.dataset.field;
         var zone = chip.dataset.zone;
         if (selectedField === fieldName && selectedFieldZone === zone) {
@@ -1993,6 +2231,12 @@
         select.addEventListener("click", function (e) { e.stopPropagation(); });
         select.addEventListener("change", function () {
           setAgg(select.dataset.field, select.value);
+        });
+      });
+      el.querySelectorAll(".showas-select").forEach(function (select) {
+        select.addEventListener("click", function (e) { e.stopPropagation(); });
+        select.addEventListener("change", function () {
+          setShowAs(select.dataset.field, select.value || null);
         });
       });
     }
@@ -2128,13 +2372,18 @@
   // Gruppen (mit Zwischensumme + Auf-/Zuklapp-Pfeil), jedes weitere Feld eine
   // Ebene tiefer — genau wie ein "kompaktes" Excel-PivotTable-Layout mit
   // mehreren Feldern im selben Bereich.
-  function buildRowDisplayList(fields, data, levelsMap, sortDir) {
+  // orderKeys: optional — feste Reihenfolge der obersten Ebene anhand ihrer
+  // Kombi-Keys (z.B. nach Wert sortiert durch einen aktiven Wertefilter).
+  // Überschreibt sortDir, wenn gesetzt.
+  function buildRowDisplayList(fields, data, levelsMap, sortDir, orderKeys) {
     if (!fields.length) return [];
     function recurse(fieldIdx, subData, parentKey, parentParts) {
       var field = fields[fieldIdx];
       var combos = computeGroupCombos([field], subData, levelsMap);
-      if (fieldIdx === 0 && sortDir === "asc") combos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
-      else if (fieldIdx === 0 && sortDir === "desc") combos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
+      if (fieldIdx === 0 && !orderKeys) {
+        if (sortDir === "asc") combos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
+        else if (sortDir === "desc") combos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
+      }
       var isLast = fieldIdx === fields.length - 1;
       var out = [];
       combos.forEach(function (combo) {
@@ -2151,7 +2400,36 @@
       });
       return out;
     }
-    return recurse(0, data, "", []);
+    var result = recurse(0, data, "", []);
+    if (orderKeys) {
+      var byKey = {};
+      result.forEach(function (e) { byKey[e.key] = e; });
+      result = orderKeys.map(function (k) { return byKey[k]; }).filter(Boolean);
+    }
+    return result;
+  }
+
+  // Wendet einen Wertefilter ("Top"/"Unten" N nach einem Wertefeld) auf die
+  // Daten an, bevor überhaupt gruppiert wird — wie rowLabelHidden ein
+  // echter Datenfilter, nur nach Rang statt manueller Auswahl. Gibt neben
+  // den gefilterten Daten auch die nach Wert sortierte Reihenfolge zurück,
+  // damit die Anzeige (und nicht nur die Auswahl) "Top zuerst" zeigt.
+  function applyValueFilterToData(data, rowFields, levelsMap, vf) {
+    if (!vf || rowFields.length !== 1) return { data: data, orderKeys: null };
+    var combos = computeGroupCombos(rowFields, data, levelsMap);
+    var scored = combos.map(function (c) {
+      var matched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, c, levelsMap); });
+      return { key: c.key, val: aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; })) };
+    });
+    scored.sort(function (a, b) { return vf.type === "bottom" ? a.val - b.val : b.val - a.val; });
+    var kept = scored.slice(0, vf.n);
+    var keepKeys = {};
+    kept.forEach(function (s) { keepKeys[s.key] = true; });
+    var filtered = data.filter(function (d) {
+      var key = rowFields.map(function (f) { return fieldValue(f, d, levelsMap).sort; }).join(" | ");
+      return keepKeys[key];
+    });
+    return { data: filtered, orderKeys: kept.map(function (s) { return s.key; }) };
   }
 
   function rowDisplayCellCls(entry) {
@@ -2259,6 +2537,7 @@
 
   function filterFieldLabel(fieldName, raw) {
     if (FIELDS[fieldName].type === "date") return formatDate(raw);
+    if (FIELDS[fieldName].type === "percent") return formatPercent(raw);
     if (FIELDS[fieldName].type === "number") return formatCurrency(raw);
     return String(raw);
   }
@@ -2333,6 +2612,11 @@
   // kombinierte "Region / Land"-Zeile. Key -> true, wenn diese Gruppe
   // eingeklappt ist (siehe buildRowDisplayList()).
   var collapsedRowGroups = {};
+  // Wertefilter ("Top 10"-artig): { type: "top"|"bottom", n, field, agg } oder
+  // null. Wirkt wie rowLabelHidden als echter Datenfilter (siehe
+  // applyValueFilterToData()), nicht nur kosmetisch.
+  var valueFilter = null;
+  var valueFilterFormOpen = false; // Auf-/zugeklappt im Zeilenbeschriftungen-Menü
   // Während das Menü offen ist: Arbeitskopie der Auswahl, erst bei "OK" in
   // rowLabelHidden übernommen — wie in echtem Excel (Abbrechen verwirft sie).
   var rowLabelMenuDraftHidden = null;
@@ -2343,10 +2627,49 @@
     if (el) el.remove();
     rowLabelMenuDraftHidden = null;
     rowLabelMenuSearch = "";
+    valueFilterFormOpen = false;
   }
 
   function rowLabelMenuCombos() {
     return computeGroupCombos(zones.rows, getFilteredData(), dateGroupLevels);
+  }
+
+  // "Wertefilter" (Top/Unten N nach einem Wertefeld) — echte Funktion statt
+  // des vorherigen inerten Menüpunkts. Braucht mindestens ein Wertefeld, um
+  // überhaupt etwas zu haben, wonach gerankt werden kann.
+  function renderValueFilterBlock() {
+    if (!zones.values.length) {
+      return '<div class="rlm-item rlm-item--disabled">Wertefilter (erst ein Feld in „Werte“ ablegen)</div>';
+    }
+    var active = !!valueFilter;
+    return '<div class="rlm-item" data-action="toggle-valuefilter">Wertefilter' +
+      (active ? ' <span class="rlm-vf-badge">●</span>' : "") +
+      ' <span class="rlm-arrow">' + (valueFilterFormOpen ? "▾" : "▸") + "</span></div>" +
+      (valueFilterFormOpen ? renderValueFilterForm() : "");
+  }
+
+  function renderValueFilterForm() {
+    var vf = valueFilter || { type: "top", n: 5, field: zones.values[0].field, agg: zones.values[0].agg };
+    var fieldOptions = zones.values.map(function (v) {
+      var val = v.field + "|" + v.agg;
+      var sel = (vf.field === v.field && vf.agg === v.agg) ? " selected" : "";
+      return '<option value="' + escapeAttr(val) + '"' + sel + '>' + escapeAttr(v.agg + " von " + v.field) + "</option>";
+    }).join("");
+    return '<div class="rlm-valuefilter">' +
+      '<div class="rlm-vf-row">' +
+        '<select id="rlm-vf-type">' +
+          '<option value="top"' + (vf.type === "top" ? " selected" : "") + ">Top</option>" +
+          '<option value="bottom"' + (vf.type === "bottom" ? " selected" : "") + ">Unten</option>" +
+        "</select>" +
+        '<input type="number" id="rlm-vf-n" min="1" max="50" value="' + vf.n + '">' +
+        '<span class="rlm-vf-label">nach</span>' +
+      "</div>" +
+      '<select id="rlm-vf-field" class="rlm-vf-field-select">' + fieldOptions + "</select>" +
+      '<div class="rlm-vf-actions">' +
+        '<button type="button" class="rlm-btn rlm-btn--primary" data-action="apply-valuefilter">Übernehmen</button>' +
+        (valueFilter ? '<button type="button" class="rlm-btn" data-action="clear-valuefilter">Entfernen</button>' : "") +
+      "</div>" +
+    "</div>";
   }
 
   function renderRowLabelFilterMenuHtml() {
@@ -2366,7 +2689,7 @@
       '<div class="rlm-sep"></div>' +
       '<div class="rlm-item' + (hasActiveFilter ? "" : " rlm-item--disabled") + '" data-action="clear-filter">Filter entfernen aus &bdquo;' + escapeAttr(fieldName) + '&ldquo;</div>' +
       '<div class="rlm-item rlm-item--disabled">Beschriftungsfilter <span class="rlm-arrow">▸</span></div>' +
-      '<div class="rlm-item rlm-item--disabled">Wertefilter <span class="rlm-arrow">▸</span></div>' +
+      renderValueFilterBlock() +
       '<div class="rlm-sep"></div>' +
       '<div class="rlm-search-wrap"><input type="text" class="rlm-search" id="rlm-search-input" placeholder="Suchen" value="' + escapeAttr(rowLabelMenuSearch) + '"></div>' +
       '<div class="rlm-list" id="rlm-list">' +
@@ -2439,6 +2762,23 @@
         rowLabelMenuDraftHidden = rowLabelMenuDraftHidden.filter(function (k) { return !visibleKeys[k]; });
         if (!checked) visibleCombos.forEach(function (c) { rowLabelMenuDraftHidden.push(c.key); });
         refreshRowLabelFilterMenuList();
+      } else if (action === "toggle-valuefilter") {
+        valueFilterFormOpen = !valueFilterFormOpen;
+        menu.innerHTML = renderRowLabelFilterMenuHtml();
+      } else if (action === "apply-valuefilter") {
+        var typeSel = document.getElementById("rlm-vf-type");
+        var nInput = document.getElementById("rlm-vf-n");
+        var fieldSel = document.getElementById("rlm-vf-field");
+        var n = parseInt(nInput.value, 10);
+        if (!n || n < 1) n = 5;
+        var parts = fieldSel.value.split("|");
+        valueFilter = { type: typeSel.value, n: n, field: parts[0], agg: parts[1] };
+        closeRowLabelFilterMenu();
+        renderPivot();
+      } else if (action === "clear-valuefilter") {
+        valueFilter = null;
+        closeRowLabelFilterMenu();
+        renderPivot();
       }
     });
     menu.addEventListener("change", function (e) {
@@ -2543,9 +2883,19 @@
         });
       }
 
+      // Wertefilter ("Top"/"Unten" N) wirkt wie ein echter Datenfilter, bevor
+      // überhaupt gruppiert wird — und bestimmt gleichzeitig die Anzeige-
+      // reihenfolge (Top zuerst), siehe applyValueFilterToData().
+      var rowOrderKeys = null;
+      if (rowFields.length === 1 && valueFilter) {
+        var vfResult = applyValueFilterToData(data, rowFields, dateGroupLevels, valueFilter);
+        data = vfResult.data;
+        rowOrderKeys = vfResult.orderKeys;
+      }
+
       // Bei einem Zeilenfeld eine flache Liste (wie bisher), bei zwei oder
       // mehr eine ein-/ausklappbare Gliederung (siehe buildRowDisplayList()).
-      var rowDisplay = buildRowDisplayList(rowFields, data, dateGroupLevels, rowLabelSortDir);
+      var rowDisplay = buildRowDisplayList(rowFields, data, dateGroupLevels, rowLabelSortDir, rowOrderKeys);
       var colCombos = computeGroupCombos(colFields, data, dateGroupLevels);
 
       if (hasValues) {
@@ -2560,6 +2910,18 @@
         });
         if (colFields.length) {
           valueFields.forEach(function (vf) { columnMeta.push({ combo: null, vf: vf }); }); // Gesamt-Spalte
+        }
+
+        // Für "Werte anzeigen als: % vom Gesamtergebnis" — bezogen auf den
+        // Gesamtwert über ALLE Daten, nicht nur die jeweilige Spalte/Zeile.
+        var grandTotals = {};
+        valueFields.forEach(function (vf) {
+          grandTotals[vf.agg + ":" + vf.field] = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
+        });
+        function applyShowAs(vf, val) {
+          if (vf.showAs !== "percentOfTotal") return val;
+          var gt = grandTotals[vf.agg + ":" + vf.field];
+          return gt ? (val / gt) * 100 : 0;
         }
 
         var firstDataRow = rowOffset + 3; // + die beiden Kopfzeilen
@@ -2588,7 +2950,8 @@
           html: rowFields.length ? 'Zeilenbeschriftungen <span class="pivot-filter-btn"></span>' : ""
         }];
         columnMeta.forEach(function (cm) {
-          headerRow2.push({ header: true, cls: "pivot-header-row", html: cm.vf.agg + " von " + cm.vf.field });
+          var vfLabel = cm.vf.agg + " von " + cm.vf.field + (cm.vf.showAs === "percentOfTotal" ? " (% vom Gesamtergebnis)" : "");
+          headerRow2.push({ header: true, cls: "pivot-header-row", html: vfLabel });
         });
         headerRow2.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(headerRow2);
@@ -2602,11 +2965,11 @@
           columnMeta.forEach(function (cm, cIdx) {
             var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
             var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
-            var val = aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; }));
+            var val = applyShowAs(cm.vf, aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; })));
             var filterParts = entry.parts.concat(cm.combo ? cm.combo.parts : []);
             var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
             dataRow.push({
-              html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+              html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
               cls: "sheet-cell--value" + (entry.isGroup ? " row-group-subtotal" : ""),
               attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
             });
@@ -2620,10 +2983,10 @@
         columnMeta.forEach(function (cm, cIdx) {
           var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
           var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
-          var val = aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; }));
+          var val = applyShowAs(cm.vf, aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; })));
           var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
           totalRow.push({
-            html: formatAggResult(cm.vf.agg, cm.vf.field, val),
+            html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
             cls: "sheet-cell--value cell-total",
             attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
           });
@@ -2809,11 +3172,23 @@
 
   function computeFlatResultSet(groupFields, valueFields, data, levelsMap) {
     var combos = computeGroupCombos(groupFields, data, levelsMap);
+    // Gesamtwert je Wertefeld über die komplette (schon gefilterte) Datenmenge
+    // — Grundlage für vf.showAs "percentOfTotal", siehe renderPivot()s
+    // applyShowAs() für dieselbe Logik in der Anzeige.
+    var grandTotals = {};
+    valueFields.forEach(function (vf) {
+      grandTotals[vf.agg + ":" + vf.field] = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
+    });
     return combos.map(function (combo) {
       var matched = groupFields.length ? data.filter(function (d) { return rowMatchesCombo(d, groupFields, combo, levelsMap); }) : data;
       var values = {};
       valueFields.forEach(function (vf) {
-        values[vf.agg + ":" + vf.field] = aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; }));
+        var val = aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; }));
+        if (vf.showAs === "percentOfTotal") {
+          var gt = grandTotals[vf.agg + ":" + vf.field];
+          val = gt ? (val / gt) * 100 : 0;
+        }
+        values[vf.agg + ":" + vf.field] = val;
       });
       return { key: combo.key, values: values };
     });
@@ -2860,7 +3235,9 @@
     var studentFields = zones.rows.concat(zones.columns);
     var targetFieldsBase = sol.rows.concat(sol.columns);
     var studentData = applyFilterValues(DATA, zones.filter, filterSelections);
+    studentData = applyValueFilterToData(studentData, zones.rows, dateGroupLevels, valueFilter).data;
     var targetData = applyFilterValues(DATA, sol.filter, sol.filterValues || {});
+    targetData = applyValueFilterToData(targetData, sol.rows, sol.dateGroupLevels || {}, sol.valueFilter || null).data;
     var studentResult = computeFlatResultSet(studentFields, zones.values, studentData, dateGroupLevels);
 
     // Bei rowsColsInterchangeable zählt jede Reihenfolge der Gruppierungs-
@@ -2873,7 +3250,13 @@
       var targetResult = computeFlatResultSet(targetFieldOrders[oi], sol.values, targetData, sol.dateGroupLevels || {});
       var cmp = resultSetsEqual(studentResult, targetResult);
       comparison = cmp;
-      if (cmp.equal) break;
+      // Ein "values"-Mismatch (falsches/fehlendes Wertefeld) liegt an der
+      // WERTE-Zone, nicht an der Reihenfolge der Gruppierungsfelder — weitere
+      // Permutationen können das nie beheben, würden hier aber ggf. zufällig
+      // in einen "count"-Mismatch umschlagen (durch die geänderte Sortier-
+      // priorität) und so eine irreführende Fehlermeldung erzeugen. Deshalb
+      // bei "values" sofort stoppen und diese (korrekte) Diagnose behalten.
+      if (cmp.equal || cmp.reason === "values") break;
     }
 
     if (!comparison.equal) {
