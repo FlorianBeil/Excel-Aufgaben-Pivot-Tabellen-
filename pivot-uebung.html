@@ -1712,29 +1712,6 @@
       }
     },
     {
-      id: "umsatz-je-quartal",
-      level: "fortgeschritten",
-      dataset: "sales",
-      category: "datumsgruppierung",
-      short: "Fasse den Umsatz nach Quartal zusammen.",
-      title: "Umsatz je Quartal",
-      intro: "<p>Die Tabelle enthält Tageswerte aus zwei Jahren — einzeln betrachtet unübersichtlich. Fasse den Umsatz stattdessen <strong>je Quartal</strong> zusammen (unabhängig vom Jahr: Q1–Q4).</p>" +
-        '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Liegt ein Datumsfeld in „Zeilen“ oder „Spalten“, kannst du direkt darunter einstellen, nach welcher Zeiteinheit gruppiert wird.</p>',
-      hints: [
-        "Das Datumsfeld gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong>).",
-        "Sobald das Datumsfeld dort liegt, erscheinen darunter Schalter für Jahr / Quartal / Monat / Tag — mehrere gleichzeitig sind möglich, hier reicht aber <strong>nur Quartal</strong>.",
-        "Im Bereich „Werte“ ist wie gewohnt „Umsatz“ mit der passenden Aggregation gefragt."
-      ],
-      solution: {
-        rows: ["Datum"],
-        columns: [],
-        filter: [],
-        values: [{ field: "Umsatz", agg: "Summe" }],
-        rowsColsInterchangeable: true,
-        dateGroupLevels: { Datum: ["quartal"] }
-      }
-    },
-    {
       id: "durchschnittlicher-rabatt-je-kategorie",
       level: "fortgeschritten",
       dataset: "produkte",
@@ -1802,18 +1779,18 @@
       }
     },
     {
-      id: "umsatz-je-quartal-und-jahr",
+      id: "umsatz-je-quartal",
       level: "fortgeschritten",
       dataset: "sales",
       category: "datumsgruppierung",
       short: "Warum Q1 2025 und Q1 2026 ohne das Jahr zusammenfallen.",
-      title: "Umsatz je Quartal — diesmal mit Jahr",
-      intro: "<p>In der vorherigen Übung „Umsatz je Quartal“ sind Q1 2025 und Q1 2026 im Ergebnis zu einem einzigen „Q1“ verschmolzen — die Tabelle enthält aber zwei Jahre. Erstelle die Pivot-Tabelle diesmal so, dass <strong>Jahr und Quartal gemeinsam</strong> die Gruppierung bilden.</p>" +
-        '<p class="goal">Ziehe das Datumsfeld wie zuvor in Zeilen oder Spalten — diesmal mit zwei aktiven Gruppierungsstufen gleichzeitig.</p>',
+      title: "Umsatz je Quartal",
+      intro: "<p>Die Tabelle enthält Tageswerte aus zwei Jahren. Fasst man nur nach Quartal zusammen, verschmelzen Q1 2025 und Q1 2026 im Ergebnis zu einem einzigen „Q1“ — erstelle die Pivot-Tabelle deshalb so, dass <strong>Jahr und Quartal gemeinsam</strong> die Gruppierung bilden.</p>" +
+        '<p class="goal">Ziehe das Datumsfeld in Zeilen oder Spalten — mit zwei aktiven Gruppierungsstufen gleichzeitig.</p>',
       hints: [
         "Das Datumsfeld gehört in den Bereich <strong>Zeilen</strong> (oder alternativ <strong>Spalten</strong>).",
         "Aktiviere darunter <strong>sowohl „Jahr“ als auch „Quartal“</strong> gleichzeitig (beide Schalter aktiv) — nicht nur einen davon.",
-        "Ohne das Jahr-Feld weiß Excel nicht, ob ein „Q1“ aus 2025 oder 2026 stammt, und addiert beide Jahre zu einer Gruppe zusammen — deshalb ergeben sich diesmal 8 statt 4 Gruppen."
+        "Ohne das Jahr-Feld weiß Excel nicht, ob ein „Q1“ aus 2025 oder 2026 stammt, und addiert beide Jahre zu einer Gruppe zusammen — deshalb ergeben sich sonst nur 4 statt 8 Gruppen."
       ],
       solution: {
         rows: ["Datum"],
@@ -2435,27 +2412,69 @@
   // orderKeys: optional — feste Reihenfolge der obersten Ebene anhand ihrer
   // Kombi-Keys (z.B. nach Wert sortiert durch einen aktiven Wertefilter).
   // Überschreibt sortDir, wenn gesetzt.
+  // Zerlegt die Zeilenfelder in einzelne "Gruppierungsschritte": ein
+  // normales Feld ist EIN Schritt, ein Datumsfeld mit mehreren aktiven
+  // Gruppierungsstufen (z.B. Jahr + Quartal) wird in mehrere Schritte
+  // aufgeteilt — einen je Stufe, in der festen Kalenderreihenfolge
+  // (Jahr → Quartal → Monat → Tag). Dadurch entsteht für "ein Feld, zwei
+  // Stufen" dieselbe ein-/ausklappbare Gliederung wie für "zwei Felder in
+  // derselben Zone" (z.B. Region + Land) — ohne zwei separate Code-Pfade.
+  function expandGroupingSteps(fields, levelsMap) {
+    var steps = [];
+    fields.forEach(function (f) {
+      if (FIELDS[f].type !== "date") {
+        steps.push({ field: f, isDateLevel: false });
+        return;
+      }
+      var chosen = (levelsMap && levelsMap[f] && levelsMap[f].length) ? levelsMap[f] : DEFAULT_DATE_LEVELS;
+      var ordered = DATE_LEVELS.filter(function (l) { return chosen.indexOf(l) !== -1; });
+      if (!ordered.length) ordered = DEFAULT_DATE_LEVELS;
+      ordered.forEach(function (level) { steps.push({ field: f, level: level, isDateLevel: true }); });
+    });
+    return steps;
+  }
+
+  function computeGroupCombosForStep(step, data) {
+    if (!step.isDateLevel) return computeGroupCombos([step.field], data, {});
+    var map = new Map();
+    data.forEach(function (row) {
+      var v = dateLevelValue(row[step.field], step.level);
+      if (!map.has(v.sort)) {
+        map.set(v.sort, { key: v.sort, label: v.label, parts: [{ field: step.field, label: v.label, level: step.level }] });
+      }
+    });
+    var combos = Array.from(map.values());
+    combos.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+    return combos;
+  }
+
+  function rowMatchesStepCombo(row, step, combo) {
+    if (!step.isDateLevel) return rowMatchesCombo(row, [step.field], combo, {});
+    return dateLevelValue(row[step.field], step.level).sort === combo.key;
+  }
+
   function buildRowDisplayList(fields, data, levelsMap, sortDir, orderKeys) {
     if (!fields.length) return [];
-    function recurse(fieldIdx, subData, parentKey, parentParts) {
-      var field = fields[fieldIdx];
-      var combos = computeGroupCombos([field], subData, levelsMap);
-      if (fieldIdx === 0 && !orderKeys) {
+    var steps = expandGroupingSteps(fields, levelsMap);
+    function recurse(stepIdx, subData, parentKey, parentParts) {
+      var step = steps[stepIdx];
+      var combos = computeGroupCombosForStep(step, subData);
+      if (stepIdx === 0 && !orderKeys) {
         if (sortDir === "asc") combos.sort(function (a, b) { return a.label.localeCompare(b.label, "de"); });
         else if (sortDir === "desc") combos.sort(function (a, b) { return b.label.localeCompare(a.label, "de"); });
       }
-      var isLast = fieldIdx === fields.length - 1;
+      var isLast = stepIdx === steps.length - 1;
       var out = [];
       combos.forEach(function (combo) {
-        var comboData = subData.filter(function (d) { return rowMatchesCombo(d, [field], combo, levelsMap); });
-        var fullKey = (parentKey ? parentKey + "‖" : "") + combo.key;
-        var parts = parentParts.concat([{ field: field, label: combo.label }]);
+        var comboData = subData.filter(function (d) { return rowMatchesStepCombo(d, step, combo); });
+        var fullKey = (parentKey ? parentKey + "‖" : "") + step.field + (step.isDateLevel ? "@" + step.level : "") + "=" + combo.key;
+        var parts = parentParts.concat(combo.parts);
         if (isLast) {
-          out.push({ level: fieldIdx, isGroup: false, label: combo.label, key: fullKey, data: comboData, parts: parts });
+          out.push({ level: stepIdx, isGroup: false, label: combo.label, key: fullKey, data: comboData, parts: parts });
         } else {
           var collapsed = !!collapsedRowGroups[fullKey];
-          out.push({ level: fieldIdx, isGroup: true, label: combo.label, key: fullKey, data: comboData, collapsed: collapsed, parts: parts });
-          if (!collapsed) out = out.concat(recurse(fieldIdx + 1, comboData, fullKey, parts));
+          out.push({ level: stepIdx, isGroup: true, label: combo.label, key: fullKey, data: comboData, collapsed: collapsed, parts: parts });
+          if (!collapsed) out = out.concat(recurse(stepIdx + 1, comboData, fullKey, parts));
         }
       });
       return out;
