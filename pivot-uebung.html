@@ -688,6 +688,23 @@
     background: var(--excel-blue-tint);
   }
 
+  /* Wertefeld-Kopfzelle mit "Werte anzeigen als"-Zusatz (z.B. "Summe von
+     Umsatz (% vom übergeordneten Zeilenergebnis)") — als volle nowrap-Zeile
+     würde das die Spalte weit über 300px aufblähen und mit Nachbarspalten
+     kollidieren. table-layout:auto ignoriert dafür ein bloßes width/
+     max-width aber gern zugunsten der (kurzen) Werte darunter — deshalb hier
+     stattdessen hart abschneiden (Ellipsis) und den vollen Text nur per
+     Tooltip (title-Attribut, siehe headerRow2-Aufbau) verfügbar machen; das
+     garantiert unabhängig vom Tabellenlayout-Algorithmus, dass der Text nie
+     in Nachbarspalten hineinragt. */
+  table.sheet-table th.pivot-vf-header {
+    width: 130px;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default;
+  }
+
   /* Lückenspalte bleibt immer weiß — auch innerhalb einer grauen Kopf-/
      Filterzeile, die sonst über die Zeilen-Klasse jede Zelle einfärben würde. */
   table.sheet-table th.sheet-gap,
@@ -2598,6 +2615,11 @@
     addedToDataModel = false;
     closeCalcFieldDialog();
     closeRibbonMenu();
+    // Das Menüband gibt es in echtem Excel natürlich immer — hier zeigen wir
+    // es aber bewusst nur in der Übung, die "Berechnetes Feld" tatsächlich
+    // braucht, damit es in allen anderen Übungen nicht unnötig vom eigentlich
+    // relevanten Bereich (Feldliste/Zonen) ablenkt.
+    document.querySelector(".excel-ribbon").hidden = ex.category !== "berechnetesfeld";
     document.getElementById("data-model-checkbox").checked = false;
     resetExerciseState();
     renderExerciseText();
@@ -4011,7 +4033,17 @@
         columnMeta.forEach(function (cm) {
           var vfLabel = FIELDS[cm.vf.field].calculated ? cm.vf.field : cm.vf.agg + " von " + cm.vf.field;
           vfLabel += showAsLabelSuffix(cm.vf);
-          headerRow2.push({ header: true, cls: "pivot-header-row", html: vfLabel });
+          // Lange "Werte anzeigen als"-Zusätze (z.B. "(% vom übergeordneten
+          // Zeilenergebnis)") würden als einzeilige nowrap-Beschriftung die
+          // Spalte auf 300px+ aufblähen und mit Nachbarspalten kollidieren.
+          // pivot-vf-header deckelt die Breite und schneidet mit Ellipsis ab;
+          // der volle Text bleibt per Tooltip (title) abrufbar.
+          headerRow2.push({
+            header: true,
+            cls: "pivot-header-row pivot-vf-header",
+            html: vfLabel,
+            attrs: ' title="' + escapeAttr(vfLabel) + '"'
+          });
         });
         headerRow2.push({ html: "", cls: "sheet-gap" });
         pivotRows.push(headerRow2);
