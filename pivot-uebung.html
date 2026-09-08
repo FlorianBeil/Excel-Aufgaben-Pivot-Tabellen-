@@ -724,6 +724,58 @@
     border-bottom: 1px solid var(--grid-gray);
   }
 
+  /* "Dem Datenmodell hinzufügen" — schaltet "Diskrete Anzahl" frei, genau wie
+     in echtem Excel (dort eine Option beim Erstellen der PivotTable). */
+  .data-model-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.1rem 0;
+  }
+  .data-model-toggle input { margin: 0; }
+
+  .add-calc-field-btn {
+    background: none;
+    border: none;
+    color: var(--excel-green-dark);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.74rem;
+    cursor: pointer;
+    padding: 0.15rem 0;
+    text-align: left;
+  }
+  .add-calc-field-btn:hover { text-decoration: underline; }
+
+  #calc-field-form {
+    background: var(--header-gray);
+    border: 1px solid var(--grid-gray);
+    border-radius: 6px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.76rem;
+  }
+  #calc-field-form input, #calc-field-form select {
+    font-family: var(--font-body);
+    font-size: 0.76rem;
+    border: 1px solid var(--grid-gray);
+    border-radius: 4px;
+    padding: 0.2rem 0.35rem;
+    width: 100%;
+  }
+  .calc-field-formula-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .calc-field-formula-row select { width: auto; flex: 1; min-width: 0; }
+  .calc-field-actions { display: flex; gap: 0.4rem; }
+
   .pivot-fields-panel__list {
     display: flex;
     flex-direction: column;
@@ -874,6 +926,13 @@
     background: var(--excel-green);
     border-color: var(--excel-green);
     color: #fff;
+  }
+
+  .calc-field-note {
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--text-muted);
   }
 
   .zone-chip .agg-select {
@@ -1194,7 +1253,13 @@
       <div class="sheet-wrap" id="sheet-canvas"></div>
       <aside class="pivot-fields-panel">
         <h4 class="pivot-fields-panel__title">PivotTable-Felder</h4>
+        <label class="data-model-toggle">
+          <input type="checkbox" id="data-model-checkbox">
+          Dem Datenmodell hinzufügen
+        </label>
         <div class="pivot-fields-panel__list" id="field-list"></div>
+        <button type="button" class="add-calc-field-btn" id="add-calc-field-btn">+ Feld hinzufügen …</button>
+        <div id="calc-field-form" hidden></div>
         <div class="pivot-fields-panel__areas">
           <div class="area-box" data-zone="filter">
             <span class="area-box__label">Filter</span>
@@ -1404,6 +1469,15 @@
     };
     var REGIONS = Object.keys(REGION_COUNTRIES);
     var REGION_BASE = { DACH: 1200, Benelux: 850, Nordics: 950 };
+    // Feste Kunden-Pools je Region (jeder Kunde kauft mehrfach ein) — Grundlage
+    // für die Profi-Übung "Anzahl unterschiedlicher Kunden je Region", bei der
+    // ANZAHL (zählt jeden Verkauf) und DISKRETE ANZAHL (zählt jeden Kunden nur
+    // einmal) bewusst unterschiedliche Ergebnisse liefern müssen.
+    var REGION_KUNDEN = {
+      DACH: ["Alpenblick GmbH", "Bergmann AG", "Rheinwerk KG", "Schwarzwald Handel", "Ostwind Systems", "Vierjahreszeiten GmbH"],
+      Benelux: ["Delta Logistik", "Fjord Trading", "Polderwerk NV", "Rotterdam Trade", "Grachten Handel", "Tulpen Import"],
+      Nordics: ["Nordlicht AS", "Baltic Trading", "Polarstern Oy", "Mitternachtssonne AB", "Rentier Logistik", "Aurora Trade"]
+    };
     function serialToDate(days) {
       var d = new Date(Date.UTC(2025, 0, 1));
       d.setUTCDate(d.getUTCDate() + days);
@@ -1416,19 +1490,22 @@
       var region = REGIONS[Math.floor(rand() * REGIONS.length)];
       var countries = REGION_COUNTRIES[region];
       var land = countries[Math.floor(rand() * countries.length)];
+      var kundenPool = REGION_KUNDEN[region];
+      var kunde = kundenPool[Math.floor(rand() * kundenPool.length)];
       var base = REGION_BASE[region];
       var umsatz = Math.round(base + (rand() - 0.4) * 700);
       if (umsatz < 50) umsatz = 50;
-      rows.push({ Datum: date, Region: region, Land: land, Umsatz: umsatz });
+      rows.push({ Datum: date, Region: region, Land: land, Kunde: kunde, Umsatz: umsatz });
     }
     return {
       fields: {
         Datum: { icon: "📅", type: "date" },
         Region: { icon: "🌍", type: "text" },
         Land: { icon: "🏳️", type: "text" },
+        Kunde: { icon: "🧑‍🤝‍🧑", type: "text" },
         Umsatz: { icon: "💰", type: "number" }
       },
-      columns: ["Datum", "Region", "Land", "Umsatz"],
+      columns: ["Datum", "Region", "Land", "Kunde", "Umsatz"],
       rows: rows
     };
   }
@@ -1472,6 +1549,11 @@
     // Bewusst unterschiedliche Rabatt-Niveaus je Kategorie, damit "Ø Rabatt
     // je Kategorie" später auch wirklich unterschiedliche Werte liefert.
     var KAT_RABATT_BASE = { Elektronik: 14, "Möbel": 8, Kleidung: 20, Sport: 12, "Bücher": 4 };
+    // Deckungsbeitragsquote je Kategorie — Grundlage für die Profi-Übung zur
+    // Deckungsbeitragsmarge (bewusst unterschiedlich, damit ein simpler
+    // Mittelwert der Einzelquoten sichtbar vom korrekten Summe/Summe-Ergebnis
+    // abweicht, sobald Bestellgrößen je Kategorie unterschiedlich schwanken).
+    var KAT_MARGE_BASE = { Elektronik: 0.18, "Möbel": 0.35, Kleidung: 0.40, Sport: 0.30, "Bücher": 0.15 };
     function serialToDate(days) {
       var d = new Date(Date.UTC(2025, 0, 1));
       d.setUTCDate(d.getUTCDate() + days);
@@ -1488,7 +1570,9 @@
         var stueckpreis = KAT_STUECKPREIS[kat] * (0.8 + rand() * 0.4);
         var rabatt = Math.max(0, Math.round(KAT_RABATT_BASE[kat] + (rand() - 0.5) * 10));
         var umsatz = Math.round(stueckpreis * menge * (1 - rabatt / 100));
-        rows.push({ Datum: date, Kategorie: kat, Menge: menge, Rabatt: rabatt, Umsatz: umsatz });
+        var margeQuote = Math.max(0.05, KAT_MARGE_BASE[kat] + (rand() - 0.5) * 0.12);
+        var deckungsbeitrag = Math.round(umsatz * margeQuote);
+        rows.push({ Datum: date, Kategorie: kat, Menge: menge, Rabatt: rabatt, Umsatz: umsatz, Deckungsbeitrag: deckungsbeitrag });
       }
     }
     return {
@@ -1497,9 +1581,10 @@
         Kategorie: { icon: "🏷️", type: "text" },
         Menge: { icon: "📦", type: "number" },
         Rabatt: { icon: "💸", type: "percent" },
-        Umsatz: { icon: "💰", type: "number" }
+        Umsatz: { icon: "💰", type: "number" },
+        Deckungsbeitrag: { icon: "📈", type: "number" }
       },
-      columns: ["Datum", "Kategorie", "Menge", "Rabatt", "Umsatz"],
+      columns: ["Datum", "Kategorie", "Menge", "Rabatt", "Umsatz", "Deckungsbeitrag"],
       rows: rows
     };
   }
@@ -1554,8 +1639,16 @@
     return type === "number" || type === "percent";
   }
 
+  // "Dem Datenmodell hinzufügen" — echtes Excel schaltet "Diskrete Anzahl"
+  // (Distinct Count) nur frei, wenn die PivotTable auf dem Datenmodell
+  // (PowerPivot) statt auf einem klassischen Bereich basiert. Nachgebildet
+  // als globaler Schalter (siehe UI in renderFieldList()); pro Übung
+  // zurückgesetzt wie die anderen übungsspezifischen Zustände.
+  var addedToDataModel = false;
+
   function aggOptionsFor(fieldName) {
-    return isNumericType(FIELDS[fieldName].type) ? AGGS_NUMERIC : AGGS_OTHER;
+    var base = isNumericType(FIELDS[fieldName].type) ? AGGS_NUMERIC : AGGS_OTHER;
+    return addedToDataModel ? base.concat(["Diskrete Anzahl"]) : base;
   }
 
   function defaultAgg(fieldName) {
@@ -1567,12 +1660,36 @@
 
   function aggregate(agg, values) {
     if (agg === "Anzahl") return values.length;
+    // "Diskrete Anzahl" (Distinct Count) zählt jeden Wert nur einmal — nur
+    // verfügbar, wenn "Dem Datenmodell hinzufügen" aktiviert ist (siehe
+    // addedToDataModel), genau wie in echtem Excel nur mit PowerPivot/dem
+    // Datenmodell möglich.
+    if (agg === "Diskrete Anzahl") return new Set(values).size;
     var nums = values.map(Number);
     if (agg === "Summe") return nums.reduce(function (a, b) { return a + b; }, 0);
     if (agg === "Mittelwert") return nums.length ? nums.reduce(function (a, b) { return a + b; }, 0) / nums.length : 0;
     if (agg === "Min") return nums.length ? Math.min.apply(null, nums) : 0;
     if (agg === "Max") return nums.length ? Math.max.apply(null, nums) : 0;
     return 0;
+  }
+
+  // Berechnete Felder ("Feld hinzufügen …", z.B. Deckungsbeitragsmarge =
+  // Deckungsbeitrag ÷ Umsatz): existieren nicht als echte Spalte in den
+  // Rohdaten. Excel berechnet sie, indem es die beiden Basisfelder zuerst
+  // jeweils SUMMIERT und danach erst die Formel anwendet — genau das ist der
+  // Grund, warum man eine Marge nicht als normales Wertfeld mitteln/summieren
+  // darf: das würde jede Zeile einzeln (statt die Summen) verrechnen.
+  var calculatedFields = {};
+
+  function aggregateForValueField(vf, rows) {
+    var cf = calculatedFields[vf.field];
+    if (!cf) return aggregate(vf.agg, rows.map(function (d) { return d[vf.field]; }));
+    var a = aggregate("Summe", rows.map(function (d) { return d[cf.fieldA]; }));
+    var b = aggregate("Summe", rows.map(function (d) { return d[cf.fieldB]; }));
+    if (cf.op === "/") return b ? a / b : 0;
+    if (cf.op === "*") return a * b;
+    if (cf.op === "-") return a - b;
+    return a + b;
   }
 
   function formatPercent(n) {
@@ -1583,9 +1700,32 @@
   // (z.B. "percentOfTotal") — überschreibt die sonst vom Feldtyp bestimmte
   // Darstellung, weil der Zahlenwert an dieser Stelle bereits ein
   // Prozentanteil ist, keine Währung/Anzahl mehr.
+  var PERCENT_SHOWAS_MODES = { percentOfTotal: true, percentOfParentRow: true, percentDifferenceFrom: true };
+
+  // Beschriftungszusatz für die Pivot-Kopfzeile, je nach "Werte anzeigen
+  // als"-Modus des Wertefelds — bei den positionsbasierten Modi inkl. des
+  // gewählten Basisfelds (immer "vorheriges Element" als Basiselement, siehe
+  // buildRowDisplayList()s prevSiblingData/cumulativeData).
+  function showAsLabelSuffix(vf) {
+    if (vf.showAs === "percentOfTotal") return " (% vom Gesamtergebnis)";
+    if (vf.showAs === "percentOfParentRow") return " (% vom übergeordneten Zeilenergebnis)";
+    if (vf.showAs === "differenceFrom") return " (Differenz von " + (vf.showAsBase || "") + ")";
+    if (vf.showAs === "percentDifferenceFrom") return " (% Differenz von " + (vf.showAsBase || "") + ")";
+    if (vf.showAs === "runningTotal") return " (Laufende Summe in " + (vf.showAsBase || "") + ")";
+    return "";
+  }
+
   function formatAggResult(agg, fieldName, value, showAs) {
-    if (showAs === "percentOfTotal") return formatPercent(value);
-    if (agg === "Anzahl") return formatNumber(value);
+    // "Differenz von"/"Laufende Summe in" haben beim allerersten Element
+    // (kein Vorgänger) bzw. in der Gesamtzeile keinen sinnvollen Wert —
+    // bleibt leer, genau wie in echtem Excel.
+    if (value === null || value === undefined) return "";
+    if (PERCENT_SHOWAS_MODES[showAs]) return formatPercent(value);
+    if (agg === "Anzahl" || agg === "Diskrete Anzahl") return formatNumber(value);
+    // Berechnete Feld-Ergebnisse aus einer Division liegen als Verhältnis
+    // (0,352) vor, nicht als fertiger Prozentwert (14) wie beim "percent"-
+    // Feldtyp — deshalb hier zusätzlich ×100.
+    if (FIELDS[fieldName].calculated && FIELDS[fieldName].type === "percent") return formatPercent(Math.round(value * 1000) / 10);
     if (FIELDS[fieldName].type === "percent") return formatPercent(Math.round(value * 10) / 10);
     if (FIELDS[fieldName].type === "number") return formatCurrency(Math.round(value * 100) / 100);
     return formatNumber(value);
@@ -1822,6 +1962,126 @@
         values: [{ field: "Umsatz", agg: "Summe" }],
         valueFilter: { type: "top", n: 5, field: "Umsatz", agg: "Summe" }
       }
+    },
+    {
+      id: "anteil-land-an-region",
+      level: "profi",
+      dataset: "sales",
+      category: "werteanzeige",
+      short: "% vom Gesamt vs. % vom übergeordneten Element.",
+      title: "Anteil jedes Landes am Umsatz seiner Region",
+      intro: "<p>Ermittle, wie viel Prozent jedes Land zum Umsatz <strong>seiner eigenen Region</strong> beiträgt — nicht zum globalen Gesamtumsatz.</p>" +
+        '<p class="goal">Region und Land müssen dafür beide gleichzeitig in Zeilen liegen, als ein-/ausklappbare Gliederung.</p>',
+      hints: [
+        "Ziehe zuerst <strong>Region</strong>, dann <strong>Land</strong> in den Bereich <strong>Zeilen</strong> — beide zusammen, nicht Land allein.",
+        "Umsatz mit „Summe“ gehört in <strong>Werte</strong>.",
+        "Rechtsklick auf eine Umsatz-Wertezelle → „Werte anzeigen als“ → <strong>„% vom übergeordneten Zeilenergebnis“</strong> (nicht „% vom Gesamtergebnis“ — das wäre der Anteil am kompletten Umsatz aller Regionen, nicht nur an der eigenen Region)."
+      ],
+      solution: {
+        rows: ["Region", "Land"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe", showAs: "percentOfParentRow" }]
+      }
+    },
+    {
+      id: "umsatzveraenderung-zum-vorjahr",
+      level: "profi",
+      dataset: "sales",
+      category: "werteanzeige",
+      short: "„Differenz von“ / „% Differenz von“, Basisfeld Jahr.",
+      title: "Umsatzveränderung zum Vorjahr, absolut und in Prozent",
+      intro: "<p>Zeige, wie sich der Umsatz <strong>je Jahr gegenüber dem Vorjahr</strong> verändert hat — einmal als absoluten Betrag, einmal in Prozent.</p>" +
+        '<p class="goal">Ziehe Umsatz zweimal in den Bereich „Werte“ und stelle jeweils eine andere „Werte anzeigen als“-Option ein.</p>',
+      hints: [
+        "Datumsfeld in <strong>Zeilen</strong>, Gruppierungsstufe <strong>Jahr</strong>.",
+        "Ziehe <strong>Umsatz</strong> zweimal in <strong>Werte</strong> (jeweils mit „Summe“).",
+        "Rechtsklick auf die erste Umsatzspalte → „Werte anzeigen als“ → <strong>„Differenz von …“</strong>, Basisfeld <strong>Datum</strong> (Basiselement ist immer das jeweils vorherige).",
+        "Rechtsklick auf die zweite Umsatzspalte → <strong>„% Differenz von …“</strong>, ebenfalls Basisfeld Datum. Für das erste Jahr bleiben beide Zellen leer — es gibt kein Vorjahr zum Vergleichen."
+      ],
+      solution: {
+        rows: ["Datum"],
+        columns: [],
+        filter: [],
+        values: [
+          { field: "Umsatz", agg: "Summe", showAs: "differenceFrom", showAsBase: "Datum" },
+          { field: "Umsatz", agg: "Summe", showAs: "percentDifferenceFrom", showAsBase: "Datum" }
+        ],
+        rowsColsInterchangeable: true,
+        dateGroupLevels: { Datum: ["jahr"] }
+      }
+    },
+    {
+      id: "deckungsbeitragsmarge-je-kategorie",
+      level: "profi",
+      dataset: "produkte",
+      category: "berechnetesfeld",
+      short: "Warum man eine Marge nicht mitteln oder summieren darf.",
+      title: "Deckungsbeitragsmarge je Kategorie",
+      intro: "<p>Ermittle die <strong>Deckungsbeitragsmarge</strong> (Deckungsbeitrag ÷ Umsatz) je Kategorie.</p>" +
+        '<p class="goal">Das ist keine Aggregationsfrage, sondern ein <strong>berechnetes Feld</strong>: Excel muss Deckungsbeitrag und Umsatz je Kategorie erst jeweils summieren und danach erst teilen — nicht die Marge jeder einzelnen Zeile berechnen und diese Einzelwerte dann mitteln. Letzteres gewichtet jede Zeile gleich stark, egal wie groß der Umsatz dahinter war, und verzerrt so das Ergebnis. Genau dieser Fehler ist in der Praxis besonders häufig.</p>',
+      hints: [
+        "Klicke unter der Feldliste auf <strong>„+ Feld hinzufügen …“</strong>.",
+        "Vergib einen Namen (z.B. „Marge“) und wähle die Formel <strong>Deckungsbeitrag ÷ Umsatz</strong>.",
+        "Kategorie gehört in <strong>Zeilen</strong>, dein neues berechnetes Feld in <strong>Werte</strong>."
+      ],
+      // referenceCalcFields liegt bewusst auf Übungs-, nicht auf Lösungsebene —
+      // openExercise() liest ex.referenceCalcFields, um das versteckte
+      // Referenzfeld schon beim Öffnen der Übung zu registrieren (unabhängig
+      // vom Namen, den der Schüler seinem eigenen berechneten Feld gibt).
+      referenceCalcFields: [{ name: "__marge_ref__", fieldA: "Deckungsbeitrag", op: "/", fieldB: "Umsatz" }],
+      solution: {
+        rows: ["Kategorie"],
+        columns: [],
+        filter: [],
+        values: [{ field: "__marge_ref__", agg: "Summe" }],
+        rowsColsInterchangeable: true
+      }
+    },
+    {
+      id: "kumulierter-umsatz-je-monat",
+      level: "profi",
+      dataset: "sales",
+      category: "werteanzeige",
+      short: "„Laufende Summe in“, Basisfeld Monat.",
+      title: "Kumulierter Umsatz im Jahresverlauf, je Monat",
+      intro: "<p>Zeige den Umsatz <strong>kumuliert je Monat</strong> — jeder Monat zeigt die Summe von sich selbst plus aller vorherigen Monate.</p>" +
+        '<p class="goal">Ziehe das Datumsfeld in Zeilen (Gruppierungsstufe Monat) und stelle die passende „Werte anzeigen als“-Option ein.</p>',
+      hints: [
+        "Datumsfeld in <strong>Zeilen</strong>, Gruppierungsstufe <strong>Monat</strong>.",
+        "Umsatz mit „Summe“ in <strong>Werte</strong>.",
+        "Rechtsklick auf eine Umsatz-Wertezelle → „Werte anzeigen als“ → <strong>„Laufende Summe in …“</strong>, Basisfeld <strong>Datum</strong>."
+      ],
+      solution: {
+        rows: ["Datum"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Umsatz", agg: "Summe", showAs: "runningTotal", showAsBase: "Datum" }],
+        rowsColsInterchangeable: true,
+        dateGroupLevels: { Datum: ["monat"] }
+      }
+    },
+    {
+      id: "anzahl-unterschiedlicher-kunden-je-region",
+      level: "profi",
+      dataset: "sales",
+      category: "datenmodell",
+      short: "Nur mit „Dem Datenmodell hinzufügen“ und „Diskrete Anzahl“ lösbar.",
+      title: "Anzahl unterschiedlicher Kunden je Region",
+      intro: "<p>Ermittle, wie viele <strong>unterschiedliche</strong> Kunden je Region eingekauft haben — nicht die Anzahl der Verkäufe.</p>" +
+        '<p class="goal">Das ist mit einer klassischen PivotTable nicht lösbar: „Anzahl“ zählt jeden Verkauf, auch von wiederkehrenden Kunden, mehrfach. Genau hier endet die klassische PivotTable — und beginnt der Bereich von PowerPivot/dem Datenmodell.</p>',
+      hints: [
+        "Region gehört in <strong>Zeilen</strong>, Kunde in <strong>Werte</strong> — mit „Anzahl“ zählst du aber jeden Verkauf, nicht jeden Kunden.",
+        "Aktiviere oben im Feld-Panel die Option <strong>„Dem Datenmodell hinzufügen“</strong>.",
+        "Erst danach steht im Aggregations-Dropdown von Kunde die Option <strong>„Diskrete Anzahl“</strong> zur Verfügung — genau das zählt jeden Kunden nur einmal."
+      ],
+      solution: {
+        rows: ["Region"],
+        columns: [],
+        filter: [],
+        values: [{ field: "Kunde", agg: "Diskrete Anzahl" }],
+        rowsColsInterchangeable: true
+      }
     }
   ];
 
@@ -1887,6 +2147,7 @@
   var zones = { filter: [], columns: [], rows: [], values: [] };
   var selectedField = null; // field name currently selected via click (mobile fallback)
   var selectedFieldZone = null; // null = ausgewählt aus der Feldliste; sonst die Zone, aus der ein bereits platziertes Feld zum Verschieben ausgewählt wurde
+  var selectedEntryId = null; // bei Werte-Chips: welche konkrete Instanz ausgewählt ist (bei Duplikaten nötig)
 
   var fieldListEl = document.getElementById("field-list");
   var zoneEls = {
@@ -1901,13 +2162,23 @@
     return zones[zoneKey].indexOf(fieldName) !== -1;
   }
 
+  // Werte-Einträge werden über eine eindeutige ID identifiziert, nicht über
+  // den Feldnamen — echtes Excel erlaubt, dasselbe Feld mehrfach in Werte
+  // abzulegen (z.B. einmal normal, einmal als "Differenz von"), und dann
+  // müssen Entfernen/Verschieben/Aggregation/"Werte anzeigen als" den
+  // richtigen der beiden gleichnamigen Einträge treffen.
+  var valueEntryIdSeq = 0;
+  function findValueEntry(entryId) {
+    return zones.values.find(function (v) { return v.id === entryId; });
+  }
+
   // Reine Zustandsänderungen ohne Re-Render, damit ein Verschieben (Entfernen +
   // Hinzufügen) als ein einziger Render-Durchlauf passiert statt zwei.
   function addToZoneState(zoneKey, fieldName) {
-    if (fieldInZone(zoneKey, fieldName)) return;
     if (zoneKey === "values") {
-      zones.values.push({ field: fieldName, agg: defaultAgg(fieldName) });
+      zones.values.push({ id: "v" + (++valueEntryIdSeq), field: fieldName, agg: defaultAgg(fieldName) });
     } else {
+      if (fieldInZone(zoneKey, fieldName)) return;
       zones[zoneKey].push(fieldName);
     }
     // Ein zusätzliches/neues Zeilenfeld ändert den Kombi-Schlüsselraum —
@@ -1915,9 +2186,12 @@
     if (zoneKey === "rows") { rowLabelHidden = []; rowLabelSortDir = null; collapsedRowGroups = {}; valueFilter = null; }
   }
 
-  function removeFromZoneState(zoneKey, fieldName) {
+  // entryId: bei zoneKey "values" die konkrete zu entfernende Instanz (bei
+  // mehreren gleichnamigen Feldern sonst mehrdeutig); bei anderen Zonen
+  // ungenutzt, dort identifiziert der Feldname eindeutig.
+  function removeFromZoneState(zoneKey, fieldName, entryId) {
     if (zoneKey === "values") {
-      zones.values = zones.values.filter(function (v) { return v.field !== fieldName; });
+      zones.values = zones.values.filter(function (v) { return entryId ? v.id !== entryId : v.field !== fieldName; });
     } else {
       zones[zoneKey] = zones[zoneKey].filter(function (f) { return f !== fieldName; });
     }
@@ -1938,10 +2212,10 @@
   // Vertauscht ein Feld mit seinem Nachbarn innerhalb derselben Zone (direction
   // -1 = nach oben, +1 = nach unten) — z.B. um bei zwei Feldern in Zeilen
   // (Region + Land) festzulegen, welches außen/innen gruppiert wird.
-  function moveFieldWithinZone(zoneKey, fieldName, direction) {
+  function moveFieldWithinZone(zoneKey, fieldName, direction, entryId) {
     var arr = zones[zoneKey];
     var idx = zoneKey === "values"
-      ? arr.findIndex(function (v) { return v.field === fieldName; })
+      ? arr.findIndex(function (v) { return v.id === entryId; })
       : arr.indexOf(fieldName);
     if (idx === -1) return;
     var newIdx = idx + direction;
@@ -1952,33 +2226,38 @@
     renderAll();
   }
 
-  function removeFieldFromZone(zoneKey, fieldName) {
-    removeFromZoneState(zoneKey, fieldName);
+  function removeFieldFromZone(zoneKey, fieldName, entryId) {
+    removeFromZoneState(zoneKey, fieldName, entryId);
     renderAll();
   }
 
   // Verschiebt ein bereits platziertes Feld von einer Zone in eine andere
   // (per Drag & Drop oder per Klick-Auswahl + Klick auf die Zielzone).
   // fromZone ist null, wenn das Feld frisch aus der Feldliste kommt.
-  function moveFieldToZone(fieldName, fromZone, toZone) {
+  function moveFieldToZone(fieldName, fromZone, toZone, entryId) {
     if (fromZone === toZone) return;
-    if (fromZone) removeFromZoneState(fromZone, fieldName);
+    if (fromZone) removeFromZoneState(fromZone, fieldName, entryId);
     addToZoneState(toZone, fieldName);
     renderAll();
   }
 
-  function setAgg(fieldName, agg) {
-    var entry = zones.values.find(function (v) { return v.field === fieldName; });
+  function setAgg(entryId, agg) {
+    var entry = findValueEntry(entryId);
     if (!entry) return;
     entry.agg = agg;
     renderPivot();
   }
 
-  function setShowAs(fieldName, showAs) {
-    var entry = zones.values.find(function (v) { return v.field === fieldName; });
+  // showAsBase: nur für die positionsbasierten Modi (Differenz von, %
+  // Differenz von, Laufende Summe in) relevant — welches Feld als Basis für
+  // "Vorgänger"/"kumuliert bis hier" dient (siehe buildRowDisplayList()).
+  // Basiselement ist dabei immer "vorheriges" — ein Auswahl-UI dafür (wie in
+  // echtem Excel möglich) ist hier bewusst nicht nachgebaut.
+  function setShowAs(entryId, showAs, showAsBase) {
+    var entry = findValueEntry(entryId);
     if (!entry) return;
-    if (showAs) entry.showAs = showAs;
-    else delete entry.showAs;
+    if (showAs) entry.showAs = showAs; else delete entry.showAs;
+    if (showAsBase) entry.showAsBase = showAsBase; else delete entry.showAsBase;
     renderPivot();
   }
 
@@ -2005,6 +2284,7 @@
     valueFilterFormOpen = false;
     selectedField = null;
     selectedFieldZone = null;
+    selectedEntryId = null;
     feedbackEl.classList.remove("show", "correct", "incorrect");
   }
 
@@ -2023,9 +2303,24 @@
 
     currentExercise = ex;
     loadDataset(ex.dataset || "sales");
+    // Berechnete Felder und der Datenmodell-Schalter sind an das jeweilige
+    // Dataset gebunden (loadDataset() ersetzt FIELDS ohnehin komplett) —
+    // beim Wechsel der Übung zurücksetzen, beim bloßen "Zurücksetzen"
+    // innerhalb derselben Übung aber bewusst erhalten (siehe resetExerciseState).
+    calculatedFields = {};
+    // Manche Übungen brauchen eine berechnete Referenz-Formel für die
+    // Bewertung, OHNE dass der Name im Feld-Panel auftaucht (der Student
+    // soll das Feld selbst über "+ Feld hinzufügen …" anlegen).
+    (ex.referenceCalcFields || []).forEach(function (rf) {
+      calculatedFields[rf.name] = { fieldA: rf.fieldA, op: rf.op, fieldB: rf.fieldB };
+    });
+    addedToDataModel = false;
+    calcFieldFormOpen = false;
+    document.getElementById("data-model-checkbox").checked = false;
     resetExerciseState();
     renderExerciseText();
     renderFieldList();
+    renderCalcFieldForm();
     renderAll();
   }
 
@@ -2121,6 +2416,57 @@
   }
 
   // ---------- Rendering: Feldliste (Excel-Feldliste: Checkbox-artige Zeilen, kein Chip-Look) ----------
+  // ---------- Berechnetes Feld ("+ Feld hinzufügen …") ----------
+  var calcFieldFormOpen = false;
+
+  function renderCalcFieldForm() {
+    var container = document.getElementById("calc-field-form");
+    if (!calcFieldFormOpen) { container.hidden = true; container.innerHTML = ""; return; }
+    var numericFields = Object.keys(FIELDS).filter(function (f) { return isNumericType(FIELDS[f].type) && !FIELDS[f].calculated; });
+    if (numericFields.length < 2) {
+      container.hidden = false;
+      container.innerHTML = '<p style="margin:0;color:var(--text-muted);">Für ein berechnetes Feld werden mindestens zwei Zahlenfelder benötigt.</p>' +
+        '<div class="calc-field-actions"><button type="button" class="rlm-btn" data-action="calc-cancel">Schließen</button></div>';
+    } else {
+      container.hidden = false;
+      var fieldOptions = numericFields.map(function (f) { return '<option value="' + escapeAttr(f) + '">' + escapeAttr(f) + "</option>"; }).join("");
+      container.innerHTML =
+        '<input type="text" id="calc-field-name" placeholder="Name des neuen Felds, z.B. Marge">' +
+        '<div class="calc-field-formula-row">' +
+          '<select id="calc-field-a">' + fieldOptions + "</select>" +
+          '<select id="calc-field-op"><option value="/">÷</option><option value="*">×</option><option value="+">+</option><option value="-">−</option></select>' +
+          '<select id="calc-field-b">' + fieldOptions + "</select>" +
+        "</div>" +
+        '<div class="calc-field-actions">' +
+          '<button type="button" class="rlm-btn rlm-btn--primary" data-action="calc-submit">Hinzufügen</button>' +
+          '<button type="button" class="rlm-btn" data-action="calc-cancel">Abbrechen</button>' +
+        "</div>";
+      // Sinnvolle Vorbelegung für Fälle mit genau 2 Zahlenfeldern (Feld B
+      // direkt auf das zweite Feld statt wieder auf das erste).
+      if (numericFields.length >= 2) document.getElementById("calc-field-b").value = numericFields[1];
+    }
+    container.querySelectorAll("[data-action]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.dataset.action === "calc-cancel") {
+          calcFieldFormOpen = false;
+          renderCalcFieldForm();
+          return;
+        }
+        // calc-submit
+        var name = document.getElementById("calc-field-name").value.trim();
+        if (!name || FIELDS[name]) return; // Name fehlt oder ist schon vergeben
+        var fieldA = document.getElementById("calc-field-a").value;
+        var op = document.getElementById("calc-field-op").value;
+        var fieldB = document.getElementById("calc-field-b").value;
+        calculatedFields[name] = { fieldA: fieldA, op: op, fieldB: fieldB };
+        FIELDS[name] = { icon: "🧮", type: op === "/" ? "percent" : "number", calculated: true };
+        calcFieldFormOpen = false;
+        renderCalcFieldForm();
+        renderFieldList();
+      });
+    });
+  }
+
   function renderFieldList() {
     var html = "";
     Object.keys(FIELDS).forEach(function (name) {
@@ -2145,6 +2491,7 @@
         } else {
           selectedField = row.dataset.field;
           selectedFieldZone = null;
+          selectedEntryId = null;
         }
         renderFieldList();
         renderZones(); // löscht ggf. die Markierung eines zuvor zum Verschieben ausgewählten Zonen-Chips
@@ -2173,11 +2520,21 @@
         // anzeigen als" (Normal / % vom Gesamtergebnis) gehört per Rechtsklick
         // auf die Wertezelle in der Pivot-Tabelle selbst, genau wie in echtem
         // Excel (siehe openValueCellContextMenu()).
-        var options = aggOptionsFor(fieldName).map(function (opt) {
-          var sel = opt === entry.agg ? " selected" : "";
-          return '<option value="' + opt + '"' + sel + ">" + opt + "</option>";
-        }).join("");
-        aggControl = '<select class="agg-select" data-field="' + fieldName + '">' + options + "</select>";
+        var cf = calculatedFields[fieldName];
+        if (cf) {
+          // Berechnete Felder haben keine eigene Aggregation — Excel summiert
+          // die beiden Basisfelder immer zuerst und wendet die Formel danach
+          // an (siehe aggregateForValueField()); eine Auswahl hier wäre ein
+          // wirkungsloses Dropdown.
+          var opSymbol = { "/": "÷", "*": "×", "+": "+", "-": "−" }[cf.op];
+          aggControl = '<div class="calc-field-note">berechnet: ' + escapeAttr(cf.fieldA) + " " + opSymbol + " " + escapeAttr(cf.fieldB) + "</div>";
+        } else {
+          var options = aggOptionsFor(fieldName).map(function (opt) {
+            var sel = opt === entry.agg ? " selected" : "";
+            return '<option value="' + opt + '"' + sel + ">" + opt + "</option>";
+          }).join("");
+          aggControl = '<select class="agg-select" data-field="' + fieldName + '" data-entry-id="' + entry.id + '">' + options + "</select>";
+        }
       }
 
       // Bei mehreren Feldern in derselben Zone (z.B. Region + Land in Zeilen)
@@ -2214,15 +2571,21 @@
       // Ein bereits platziertes Feld ist selbst wieder draggable (data-zone
       // verrät beim Drop in eine andere Zone, woher es kommt, siehe unten) und
       // per Klick auswählbar, um es per Klick auf eine andere Zone zu verschieben.
-      var isSelectedForMove = selectedField === fieldName && selectedFieldZone === zoneKey;
+      // Bei "values" identifiziert die Eintrags-ID die konkrete Instanz
+      // (wichtig, sobald dasselbe Feld mehrfach in Werte liegt); bei den
+      // anderen Zonen reicht der Feldname.
+      var entryIdAttr = zoneKey === "values" ? ' data-entry-id="' + entry.id + '"' : "";
+      var isSelectedForMove = zoneKey === "values"
+        ? selectedFieldZone === zoneKey && selectedEntryId === entry.id
+        : selectedField === fieldName && selectedFieldZone === zoneKey;
       var selCls = isSelectedForMove ? " selected" : "";
 
       var needsMultiline = isDateField || zoneKey === "values";
       if (needsMultiline) {
-        html += '<div class="chip zone-chip zone-chip--multiline' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' +
+        html += '<div class="chip zone-chip zone-chip--multiline' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '"' + entryIdAttr + '>' +
           '<div class="zone-chip__head">' + head + "</div>" + pillsHtml + aggControl + "</div>";
       } else {
-        html += '<span class="chip zone-chip' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '">' + head + "</span>";
+        html += '<span class="chip zone-chip' + selCls + '" draggable="true" data-field="' + fieldName + '" data-zone="' + zoneKey + '"' + entryIdAttr + '>' + head + "</span>";
       }
     });
     el.innerHTML = html;
@@ -2231,7 +2594,7 @@
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
         var chip = btn.closest(".zone-chip");
-        removeFieldFromZone(chip.dataset.zone, chip.dataset.field);
+        removeFieldFromZone(chip.dataset.zone, chip.dataset.field, chip.dataset.entryId);
       });
     });
 
@@ -2239,7 +2602,7 @@
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
         var chip = btn.closest(".zone-chip");
-        moveFieldWithinZone(chip.dataset.zone, chip.dataset.field, parseInt(btn.dataset.dir, 10));
+        moveFieldWithinZone(chip.dataset.zone, chip.dataset.field, parseInt(btn.dataset.dir, 10), chip.dataset.entryId);
       });
     });
 
@@ -2247,6 +2610,7 @@
       chip.addEventListener("dragstart", function (e) {
         e.dataTransfer.setData("text/plain", chip.dataset.field);
         e.dataTransfer.setData("application/x-source-zone", chip.dataset.zone);
+        e.dataTransfer.setData("application/x-entry-id", chip.dataset.entryId || "");
         chip.classList.add("dragging");
       });
       chip.addEventListener("dragend", function () { chip.classList.remove("dragging"); });
@@ -2257,12 +2621,15 @@
         if (e.target.closest(".chip-remove") || e.target.closest(".chip-reorder") || e.target.closest(".agg-select") || e.target.closest(".dategroup-pills")) return;
         var fieldName = chip.dataset.field;
         var zone = chip.dataset.zone;
-        if (selectedField === fieldName && selectedFieldZone === zone) {
+        var entryId = chip.dataset.entryId || null;
+        if (selectedField === fieldName && selectedFieldZone === zone && selectedEntryId === entryId) {
           selectedField = null;
           selectedFieldZone = null;
+          selectedEntryId = null;
         } else {
           selectedField = fieldName;
           selectedFieldZone = zone;
+          selectedEntryId = entryId;
         }
         renderFieldList();
         renderZones();
@@ -2273,7 +2640,7 @@
       el.querySelectorAll(".agg-select").forEach(function (select) {
         select.addEventListener("click", function (e) { e.stopPropagation(); });
         select.addEventListener("change", function () {
-          setAgg(select.dataset.field, select.value);
+          setAgg(select.dataset.entryId, select.value);
         });
       });
     }
@@ -2321,15 +2688,17 @@
       // Feldliste), steht hier die Ursprungszone drin — das Feld wird dann
       // verschoben statt dupliziert.
       var sourceZone = e.dataTransfer.getData("application/x-source-zone") || null;
-      moveFieldToZone(fieldName, sourceZone, zoneKey);
+      var entryId = e.dataTransfer.getData("application/x-entry-id") || null;
+      moveFieldToZone(fieldName, sourceZone, zoneKey, entryId);
     });
 
     dropEl.addEventListener("click", function (e) {
       if (e.target.closest(".zone-chip")) return; // handled separately
       if (selectedField) {
-        moveFieldToZone(selectedField, selectedFieldZone, zoneKey);
+        moveFieldToZone(selectedField, selectedFieldZone, zoneKey, selectedEntryId);
         selectedField = null;
         selectedFieldZone = null;
+        selectedEntryId = null;
         renderFieldList();
       }
     });
@@ -2465,17 +2834,29 @@
       }
       var isLast = stepIdx === steps.length - 1;
       var out = [];
+      // Für "Werte anzeigen als"-Modi, die mehr als nur die eigene Zeile
+      // brauchen: parentData (übergeordnetes Zeilenergebnis, für "% vom
+      // übergeordneten Element"), prevSiblingData (Vorgänger auf derselben
+      // Ebene, für "Differenz von"/"% Differenz von" — null beim ersten
+      // Element, dann bleibt die Zelle leer wie in echtem Excel) und
+      // cumulativeData (alle Geschwister bis einschließlich diesem, für
+      // "Laufende Summe in").
+      var cumulativeSoFar = [];
+      var prevData = null;
       combos.forEach(function (combo) {
         var comboData = subData.filter(function (d) { return rowMatchesStepCombo(d, step, combo); });
+        cumulativeSoFar = cumulativeSoFar.concat(comboData);
         var fullKey = (parentKey ? parentKey + "‖" : "") + step.field + (step.isDateLevel ? "@" + step.level : "") + "=" + combo.key;
         var parts = parentParts.concat(combo.parts);
+        var shared = { data: comboData, parts: parts, parentData: subData, prevSiblingData: prevData, cumulativeData: cumulativeSoFar };
         if (isLast) {
-          out.push({ level: stepIdx, isGroup: false, label: combo.label, key: fullKey, data: comboData, parts: parts });
+          out.push(Object.assign({ level: stepIdx, isGroup: false, label: combo.label, key: fullKey }, shared));
         } else {
           var collapsed = !!collapsedRowGroups[fullKey];
-          out.push({ level: stepIdx, isGroup: true, label: combo.label, key: fullKey, data: comboData, collapsed: collapsed, parts: parts });
+          out.push(Object.assign({ level: stepIdx, isGroup: true, label: combo.label, key: fullKey, collapsed: collapsed }, shared));
           if (!collapsed) out = out.concat(recurse(stepIdx + 1, comboData, fullKey, parts));
         }
+        prevData = comboData;
       });
       return out;
     }
@@ -2498,7 +2879,7 @@
     var combos = computeGroupCombos(rowFields, data, levelsMap);
     var scored = combos.map(function (c) {
       var matched = data.filter(function (d) { return rowMatchesCombo(d, rowFields, c, levelsMap); });
-      return { key: c.key, val: aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; })) };
+      return { key: c.key, val: aggregateForValueField(vf, matched) };
     });
     scored.sort(function (a, b) { return vf.type === "bottom" ? a.val - b.val : b.val - a.val; });
     var kept = scored.slice(0, vf.n);
@@ -2717,41 +3098,93 @@
     if (el) el.remove();
   }
 
+  // Modi, die zusätzlich ein Basisfeld brauchen (die restlichen Modi wenden
+  // sich sofort an, ohne Zwischenschritt).
+  var SHOWAS_NEEDS_BASE = { differenceFrom: true, percentDifferenceFrom: true, runningTotal: true };
+  var SHOWAS_OPTIONS = [
+    { value: "", label: "Normal" },
+    { value: "percentOfTotal", label: "% vom Gesamtergebnis" },
+    { value: "percentOfParentRow", label: "% vom übergeordneten Zeilenergebnis" },
+    { value: "differenceFrom", label: "Differenz von …" },
+    { value: "percentDifferenceFrom", label: "% Differenz von …" },
+    { value: "runningTotal", label: "Laufende Summe in …" }
+  ];
+
   function openValueCellContextMenu(cell, clientX, clientY) {
     closeValueCellContextMenu();
     closeFilterDropdown();
     closeRowLabelFilterMenu();
-    var fieldName = cell.dataset.vfField;
-    var agg = cell.dataset.vfAgg;
-    var entry = zones.values.find(function (v) { return v.field === fieldName && v.agg === agg; });
+    var entryId = cell.dataset.vfId;
+    var entry = findValueEntry(entryId);
     if (!entry) return;
-    var current = entry.showAs || "";
     var canvas = document.getElementById("sheet-canvas");
     var canvasRect = canvas.getBoundingClientRect();
     var left = clientX - canvasRect.left + canvas.scrollLeft;
     var top = clientY - canvasRect.top + canvas.scrollTop;
-    var options = [
-      { value: "", label: "Normal" },
-      { value: "percentOfTotal", label: "% vom Gesamtergebnis" }
-    ];
-    var html = '<div class="value-context-menu" id="value-context-menu">' +
-      '<div class="vcm-header">Werte anzeigen als</div>' +
-      options.map(function (o) {
-        return '<div class="rlm-item" data-value="' + o.value + '">' + escapeAttr(o.label) +
-          (current === o.value ? ' <span class="vcm-check">✓</span>' : "") + "</div>";
-      }).join("") +
-      "</div>";
-    canvas.insertAdjacentHTML("beforeend", html);
+    var pendingBaseMode = null; // während der Basisfeld-Auswahl gesetzt
+
+    function baseFieldOptions() {
+      var candidates = zones.rows.concat(zones.columns);
+      var seen = {};
+      candidates = candidates.filter(function (f) { return seen[f] ? false : (seen[f] = true); });
+      return candidates;
+    }
+
+    function renderMenuHtml() {
+      if (pendingBaseMode) {
+        var fields = baseFieldOptions();
+        if (!fields.length) {
+          return '<div class="vcm-header">Basisfeld wählen</div>' +
+            '<div class="rlm-item rlm-item--disabled">Kein Zeilen-/Spaltenfeld verfügbar</div>' +
+            '<div class="rlm-actions"><button type="button" class="rlm-btn" data-action="vcm-back">Zurück</button></div>';
+        }
+        var fieldOptionsHtml = fields.map(function (f) {
+          var sel = f === entry.showAsBase ? " selected" : "";
+          return '<option value="' + escapeAttr(f) + '"' + sel + ">" + escapeAttr(f) + "</option>";
+        }).join("");
+        return '<div class="vcm-header">Basisfeld</div>' +
+          '<div class="rlm-valuefilter"><select id="vcm-base-field">' + fieldOptionsHtml + "</select>" +
+          '<div class="rlm-vf-actions">' +
+            '<button type="button" class="rlm-btn rlm-btn--primary" data-action="vcm-apply-base">Übernehmen</button>' +
+            '<button type="button" class="rlm-btn" data-action="vcm-back">Zurück</button>' +
+          "</div></div>";
+      }
+      var current = entry.showAs || "";
+      return '<div class="vcm-header">Werte anzeigen als</div>' +
+        SHOWAS_OPTIONS.map(function (o) {
+          return '<div class="rlm-item" data-value="' + o.value + '">' + escapeAttr(o.label) +
+            (current === o.value ? ' <span class="vcm-check">✓</span>' : "") + "</div>";
+        }).join("");
+    }
+
+    canvas.insertAdjacentHTML("beforeend", '<div class="value-context-menu" id="value-context-menu">' + renderMenuHtml() + "</div>");
     var menu = document.getElementById("value-context-menu");
     menu.style.left = left + "px";
     menu.style.top = top + "px";
     menu.addEventListener("click", function (e) {
       e.stopPropagation();
+      var actionEl = e.target.closest("[data-action]");
+      if (actionEl) {
+        if (actionEl.dataset.action === "vcm-back") {
+          pendingBaseMode = null;
+          menu.innerHTML = renderMenuHtml();
+        } else if (actionEl.dataset.action === "vcm-apply-base") {
+          var baseField = document.getElementById("vcm-base-field").value;
+          setShowAs(entryId, pendingBaseMode, baseField);
+          closeValueCellContextMenu();
+        }
+        return;
+      }
       var item = e.target.closest("[data-value]");
       if (!item) return;
-      setShowAs(fieldName, item.dataset.value || null);
+      var value = item.dataset.value;
+      if (SHOWAS_NEEDS_BASE[value]) {
+        pendingBaseMode = value;
+        menu.innerHTML = renderMenuHtml();
+        return;
+      }
+      setShowAs(entryId, value || null, null);
       closeValueCellContextMenu();
-      renderPivot();
     });
   }
 
@@ -3042,12 +3475,41 @@
         // Gesamtwert über ALLE Daten, nicht nur die jeweilige Spalte/Zeile.
         var grandTotals = {};
         valueFields.forEach(function (vf) {
-          grandTotals[vf.agg + ":" + vf.field] = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
+          grandTotals[vf.agg + ":" + vf.field] = aggregateForValueField(vf, data);
         });
-        function applyShowAs(vf, val) {
-          if (vf.showAs !== "percentOfTotal") return val;
-          var gt = grandTotals[vf.agg + ":" + vf.field];
-          return gt ? (val / gt) * 100 : 0;
+
+        function colFilterFor(cm) {
+          return function (rows) {
+            return cm.combo ? rows.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rows;
+          };
+        }
+
+        // Berechnet den in einer Datenzeile angezeigten Wert unter
+        // Berücksichtigung von "Werte anzeigen als": jeder Modus braucht dafür
+        // eine andere Vergleichsbasis (Gesamt / übergeordnete Zeile /
+        // Vorgänger-Element / kumuliert bis hierhin) — siehe buildRowDisplayList()
+        // für parentData/prevSiblingData/cumulativeData.
+        function computeShownValue(vf, entry, cm) {
+          var filterCol = colFilterFor(cm);
+          var raw = aggregateForValueField(vf, filterCol(entry.data));
+          if (vf.showAs === "percentOfTotal") {
+            var gt = grandTotals[vf.agg + ":" + vf.field];
+            return gt ? (raw / gt) * 100 : 0;
+          }
+          if (vf.showAs === "percentOfParentRow") {
+            var parentVal = aggregateForValueField(vf, filterCol(entry.parentData || data));
+            return parentVal ? (raw / parentVal) * 100 : 0;
+          }
+          if (vf.showAs === "differenceFrom" || vf.showAs === "percentDifferenceFrom") {
+            if (!entry.prevSiblingData) return null; // erstes Element: kein Vorgänger, wie in echtem Excel leer
+            var prevVal = aggregateForValueField(vf, filterCol(entry.prevSiblingData));
+            if (vf.showAs === "differenceFrom") return raw - prevVal;
+            return prevVal ? ((raw - prevVal) / prevVal) * 100 : null;
+          }
+          if (vf.showAs === "runningTotal") {
+            return aggregateForValueField(vf, filterCol(entry.cumulativeData || entry.data));
+          }
+          return raw;
         }
 
         var firstDataRow = rowOffset + 3; // + die beiden Kopfzeilen
@@ -3076,7 +3538,8 @@
           html: rowFields.length ? 'Zeilenbeschriftungen <span class="pivot-filter-btn"></span>' : ""
         }];
         columnMeta.forEach(function (cm) {
-          var vfLabel = cm.vf.agg + " von " + cm.vf.field + (cm.vf.showAs === "percentOfTotal" ? " (% vom Gesamtergebnis)" : "");
+          var vfLabel = FIELDS[cm.vf.field].calculated ? cm.vf.field : cm.vf.agg + " von " + cm.vf.field;
+          vfLabel += showAsLabelSuffix(cm.vf);
           headerRow2.push({ header: true, cls: "pivot-header-row", html: vfLabel });
         });
         headerRow2.push({ html: "", cls: "sheet-gap" });
@@ -3090,15 +3553,14 @@
           var dataRow = [{ cls: rowDisplayCellCls(entry), html: rowDisplayLabelHtml(entry) }];
           columnMeta.forEach(function (cm, cIdx) {
             var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
-            var cellData = cm.combo ? rowMatched.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : rowMatched;
-            var val = applyShowAs(cm.vf, aggregate(cm.vf.agg, cellData.map(function (d) { return d[cm.vf.field]; })));
+            var val = computeShownValue(cm.vf, entry, cm);
             var filterParts = entry.parts.concat(cm.combo ? cm.combo.parts : []);
             var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
             dataRow.push({
               html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
               cls: "sheet-cell--value" + (entry.isGroup ? " row-group-subtotal" : ""),
               attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"' +
-                ' data-vf-field="' + escapeAttr(cm.vf.field) + '" data-vf-agg="' + escapeAttr(cm.vf.agg) + '"'
+                ' data-vf-field="' + escapeAttr(cm.vf.field) + '" data-vf-agg="' + escapeAttr(cm.vf.agg) + '" data-vf-id="' + escapeAttr(cm.vf.id) + '"'
             });
           });
           dataRow.push({ html: "", cls: "sheet-gap" });
@@ -3107,10 +3569,18 @@
 
         // Gesamtsumme-Zeile
         var totalRow = [{ cls: "rowlabel cell-total", html: "Gesamt" }];
+        // "Differenz von"/"Laufende Summe in" haben in der Gesamtzeile keine
+        // sinnvolle Vergleichsbasis mehr (bleibt leer); die beiden
+        // %-Anteil-Modi ergeben dort denkgesetzlich immer 100 %, ohne
+        // computeShownValue noch einmal eigens dafür aufzurufen.
+        var POSITIONAL_SHOWAS_MODES = { differenceFrom: true, percentDifferenceFrom: true, runningTotal: true };
         columnMeta.forEach(function (cm, cIdx) {
           var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
           var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
-          var val = applyShowAs(cm.vf, aggregate(cm.vf.agg, colMatched.map(function (d) { return d[cm.vf.field]; })));
+          var val;
+          if (POSITIONAL_SHOWAS_MODES[cm.vf.showAs]) val = null;
+          else if (cm.vf.showAs === "percentOfTotal" || cm.vf.showAs === "percentOfParentRow") val = 100;
+          else val = aggregateForValueField(cm.vf, colMatched);
           var formula = totalColumnFormula(cm.vf.agg, colLetter, firstDataRow, lastDataRow);
           totalRow.push({
             html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
@@ -3307,25 +3777,74 @@
     return result;
   }
 
+  // "% vom übergeordneten Zeilenergebnis" für die Bewertung: das
+  // übergeordnete Element einer Kombination sind alle Datenzeilen, die in
+  // den Gruppierungsfeldern OHNE das letzte Feld übereinstimmen (eine
+  // Beispielzeile aus "matched" reicht, um deren Werte zu kennen).
+  function computeParentData(matched, data, groupFields, levelsMap) {
+    if (groupFields.length <= 1 || !matched.length) return data;
+    var parentFields = groupFields.slice(0, -1);
+    var sample = matched[0];
+    return data.filter(function (d) {
+      return parentFields.every(function (f) { return fieldValue(f, d, levelsMap).sort === fieldValue(f, sample, levelsMap).sort; });
+    });
+  }
+
+  // Eindeutiger Schlüssel für ein Wertefeld-Eintrag beim Vergleich Schüler-
+  // vs. Musterlösung. Reines "agg:feldname" reicht aus zwei Gründen nicht:
+  // (a) dasselbe Feld kann mehrfach in "Werte" liegen (z.B. Umsatz einmal als
+  // "Differenz von", einmal als "% Differenz von" — siehe "Umsatzveränderung
+  // zum Vorjahr") und würde sonst denselben Schlüssel erzeugen und sich
+  // gegenseitig überschreiben; (b) ein berechnetes Feld kann von Schüler und
+  // Musterlösung unter komplett unterschiedlichem Namen angelegt sein (die
+  // Übung registriert dafür ein verstecktes "referenceCalcFields"-Pendant,
+  // siehe openExercise()) — dort muss die FORMEL (fieldA/op/fieldB) zählen,
+  // nicht der frei gewählte Name.
+  function valueFieldKey(vf) {
+    var cf = calculatedFields[vf.field];
+    var fieldPart = cf ? ("calc:" + cf.fieldA + cf.op + cf.fieldB) : vf.field;
+    return vf.agg + ":" + fieldPart + (vf.showAs ? ":" + vf.showAs : "");
+  }
+
   function computeFlatResultSet(groupFields, valueFields, data, levelsMap) {
     var combos = computeGroupCombos(groupFields, data, levelsMap);
+    var matchedList = combos.map(function (combo) {
+      return groupFields.length ? data.filter(function (d) { return rowMatchesCombo(d, groupFields, combo, levelsMap); }) : data;
+    });
     // Gesamtwert je Wertefeld über die komplette (schon gefilterte) Datenmenge
     // — Grundlage für vf.showAs "percentOfTotal", siehe renderPivot()s
-    // applyShowAs() für dieselbe Logik in der Anzeige.
+    // computeShownValue() für dieselbe Logik in der Anzeige.
     var grandTotals = {};
     valueFields.forEach(function (vf) {
-      grandTotals[vf.agg + ":" + vf.field] = aggregate(vf.agg, data.map(function (d) { return d[vf.field]; }));
+      grandTotals[valueFieldKey(vf)] = aggregateForValueField(vf, data);
     });
-    return combos.map(function (combo) {
-      var matched = groupFields.length ? data.filter(function (d) { return rowMatchesCombo(d, groupFields, combo, levelsMap); }) : data;
+    return combos.map(function (combo, i) {
+      var matched = matchedList[i];
       var values = {};
       valueFields.forEach(function (vf) {
-        var val = aggregate(vf.agg, matched.map(function (d) { return d[vf.field]; }));
+        var raw = aggregateForValueField(vf, matched);
+        var val;
         if (vf.showAs === "percentOfTotal") {
-          var gt = grandTotals[vf.agg + ":" + vf.field];
-          val = gt ? (val / gt) * 100 : 0;
+          var gt = grandTotals[valueFieldKey(vf)];
+          val = gt ? (raw / gt) * 100 : 0;
+        } else if (vf.showAs === "percentOfParentRow") {
+          var parentVal = aggregateForValueField(vf, computeParentData(matched, data, groupFields, levelsMap));
+          val = parentVal ? (raw / parentVal) * 100 : 0;
+        } else if (vf.showAs === "differenceFrom" || vf.showAs === "percentDifferenceFrom") {
+          if (i === 0) {
+            val = null; // erstes Element: kein Vorgänger, wie in echtem Excel leer
+          } else {
+            var prevVal = aggregateForValueField(vf, matchedList[i - 1]);
+            val = vf.showAs === "differenceFrom" ? (raw - prevVal) : (prevVal ? ((raw - prevVal) / prevVal) * 100 : null);
+          }
+        } else if (vf.showAs === "runningTotal") {
+          var cumData = [];
+          for (var j = 0; j <= i; j++) cumData = cumData.concat(matchedList[j]);
+          val = aggregateForValueField(vf, cumData);
+        } else {
+          val = raw;
         }
-        values[vf.agg + ":" + vf.field] = val;
+        values[valueFieldKey(vf)] = val;
       });
       return { key: combo.key, values: values };
     });
@@ -3514,6 +4033,16 @@
     var box = document.getElementById("hints-box");
     var open = box.classList.toggle("open");
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
+  });
+
+  document.getElementById("data-model-checkbox").addEventListener("change", function () {
+    addedToDataModel = this.checked;
+    renderZones(); // aktualisiert die Aggregations-Auswahl im Werte-Chip
+  });
+
+  document.getElementById("add-calc-field-btn").addEventListener("click", function () {
+    calcFieldFormOpen = !calcFieldFormOpen;
+    renderCalcFieldForm();
   });
 
   document.getElementById("back-to-overview").addEventListener("click", function (e) {
