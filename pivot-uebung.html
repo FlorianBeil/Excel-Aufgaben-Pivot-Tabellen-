@@ -72,6 +72,79 @@
     box-shadow: 0 1px 2px rgba(16,124,65,0.06), 0 4px 14px rgba(16,124,65,0.06);
   }
 
+  /* ---------- Stufen-Tabs + Übungsauswahl je Stufe (1:1 aus dem
+     Übungsportal übernommen: gleiche Pillen-Optik) ---------- */
+  .level-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .level-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .level-tab {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--border-color);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+  }
+  .level-tab:hover { border-color: var(--excel-green); color: var(--excel-green-dark); }
+  .level-tab.is-active { background: var(--excel-green); border-color: var(--excel-green); color: #fff; }
+  .level-tab__count { font-family: var(--font-mono); font-size: 0.72rem; opacity: 0.85; }
+
+  .exercise-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .exercise-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .exercise-card:hover { border-color: var(--excel-green); }
+  .exercise-card.is-active { border-color: var(--excel-green); box-shadow: 0 0 0 1px var(--excel-green); }
+  .exercise-card__title { font-weight: 600; font-size: 0.84rem; color: var(--text-primary); }
+  .exercise-card__desc { font-size: 0.74rem; color: var(--text-muted); line-height: 1.25; }
+
+  /* Platzhalter für eine Stufe, die noch keine Übung hat (z.B. Profi) */
+  .level-empty {
+    background: var(--header-gray);
+    border: 1px dashed var(--grid-gray);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.3rem;
+    text-align: center;
+  }
+  .level-empty p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    font-style: italic;
+  }
+
   /* Kompakter als eine normale .card: die Aufgabenbeschreibung soll möglichst
      wenig vertikalen Platz beanspruchen, damit mehr Raum für das Arbeitsblatt bleibt. */
   .task-card {
@@ -919,6 +992,12 @@
 </header>
 
 <main>
+  <div class="level-bar">
+    <div class="level-tabs" id="level-tabs"></div>
+  </div>
+  <div class="exercise-picker" id="exercise-picker"></div>
+
+  <div id="exercise-workspace">
   <section class="card task-card">
     <h2 id="task-title"></h2>
     <div id="task-intro"></div>
@@ -967,6 +1046,11 @@
     <button class="btn btn-secondary" id="btn-reset">Zurücksetzen</button>
   </div>
   <div id="feedback"></div>
+  </div>
+
+  <div class="level-empty" id="level-empty" hidden>
+    <p></p>
+  </div>
 </main>
 
 <script>
@@ -1187,6 +1271,8 @@
   var EXERCISES = [
     {
       id: "umsatz-je-region",
+      level: "anfaenger",
+      short: "Gruppiere den Umsatz nach Region.",
       title: "Umsatz je Region auswerten",
       intro: "<p>Du hast eine Tabelle mit dem Tagesumsatz für das Jahr 2026 (Spalten: Datum, Region, Umsatz). Erstelle daraus per Drag &amp; Drop eine Pivot-Tabelle, die den <strong>Umsatz je Region</strong> zusammenfasst.</p>" +
         '<p class="goal">Ziehe die Felder aus der Feldliste unten links in die passenden Bereiche rechts (Zeilen / Spalten / Werte / Filter) — genau wie in echten Excel-PivotTables.</p>',
@@ -1206,6 +1292,8 @@
     },
     {
       id: "anzahl-verkaeufe-je-region",
+      level: "anfaenger",
+      short: "Zähle, an wie vielen Tagen je Region ein Umsatz vorliegt.",
       title: "Anzahl Verkaufstage je Region",
       intro: "<p>Für wie viele Tage liegt je Region überhaupt ein Umsatz vor? Erstelle eine Pivot-Tabelle, die das je Region auswertet.</p>" +
         '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Achte genau darauf, was gezählt werden soll.</p>',
@@ -1224,6 +1312,8 @@
     },
     {
       id: "umsatz-je-quartal",
+      level: "fortgeschritten",
+      short: "Fasse den Jahresumsatz nach Quartal zusammen.",
       title: "Umsatz je Quartal",
       intro: "<p>365 einzelne Tageswerte sind unübersichtlich. Fasse den Umsatz für das Jahr 2026 stattdessen <strong>je Quartal</strong> zusammen.</p>" +
         '<p class="goal">Ziehe die passenden Felder in die Bereiche rechts. Liegt ein Datumsfeld in „Zeilen“ oder „Spalten“, kannst du direkt darunter einstellen, nach welcher Zeiteinheit gruppiert wird.</p>',
@@ -1243,7 +1333,20 @@
     }
   ];
 
-  var currentExercise = EXERCISES[0];
+  // ---------- Stufen (Anfänger/Fortgeschritten/Profi), wie im Übungsportal ----------
+  var LEVELS = [
+    { id: "anfaenger", label: "Anfänger" },
+    { id: "fortgeschritten", label: "Fortgeschritten" },
+    { id: "profi", label: "Profi" }
+  ];
+
+  function exercisesForLevel(levelId) {
+    return EXERCISES.filter(function (ex) { return ex.level === levelId; });
+  }
+
+  // Erste Stufe mit mindestens einer Übung startet aktiv (aktuell "anfaenger").
+  var activeLevel = LEVELS.filter(function (l) { return exercisesForLevel(l.id).length > 0; })[0].id;
+  var currentExercise = exercisesForLevel(activeLevel)[0];
 
   // ---------- Zustand ----------
   // zones.rows / columns / filter: array of field names
@@ -1328,6 +1431,80 @@
     document.getElementById("hints-list").innerHTML = currentExercise.hints.map(function (h) {
       return "<li>" + h + "</li>";
     }).join("");
+  }
+
+  // ---------- Stufen-Tabs + Übungsauswahl je Stufe (wie im Übungsportal) ----------
+  // Setzt allen übungsspezifischen Zustand zurück — geteilt zwischen dem
+  // "Zurücksetzen"-Button und dem Wechsel zu einer anderen Übung/Stufe.
+  function resetExerciseState() {
+    zones = { filter: [], columns: [], rows: [], values: [] };
+    dateGroupLevels = {};
+    filterSelections = {};
+    rowLabelHidden = [];
+    rowLabelSortDir = null;
+    selectedField = null;
+    selectedFieldZone = null;
+    feedbackEl.classList.remove("show", "correct", "incorrect");
+  }
+
+  function selectExercise(ex) {
+    currentExercise = ex;
+    resetExerciseState();
+    renderExerciseText();
+    renderFieldList();
+    renderAll();
+    renderExercisePicker();
+  }
+
+  function selectLevel(levelId) {
+    activeLevel = levelId;
+    var exercises = exercisesForLevel(levelId);
+    var workspace = document.getElementById("exercise-workspace");
+    var emptyEl = document.getElementById("level-empty");
+    renderLevelTabs();
+    if (exercises.length) {
+      workspace.hidden = false;
+      emptyEl.hidden = true;
+      selectExercise(exercises[0]);
+    } else {
+      workspace.hidden = true;
+      emptyEl.hidden = false;
+      var levelLabel = LEVELS.filter(function (l) { return l.id === levelId; })[0].label;
+      emptyEl.querySelector("p").textContent = "Weitere " + levelLabel + "-Übungen zu Pivot-Tabellen folgen bald.";
+      renderExercisePicker();
+    }
+  }
+
+  function renderLevelTabs() {
+    var root = document.getElementById("level-tabs");
+    root.innerHTML = LEVELS.map(function (l) {
+      var count = exercisesForLevel(l.id).length;
+      return '<button type="button" class="level-tab' + (l.id === activeLevel ? " is-active" : "") + '" data-level="' + l.id + '">' +
+        escapeAttr(l.label) +
+        (count ? ' <span class="level-tab__count">' + count + "</span>" : "") +
+        "</button>";
+    }).join("");
+    root.querySelectorAll(".level-tab").forEach(function (btn) {
+      btn.addEventListener("click", function () { selectLevel(btn.dataset.level); });
+    });
+  }
+
+  function renderExercisePicker() {
+    var root = document.getElementById("exercise-picker");
+    var exercises = exercisesForLevel(activeLevel);
+    if (!exercises.length) { root.innerHTML = ""; return; }
+    root.innerHTML = exercises.map(function (ex) {
+      return '<button type="button" class="exercise-card' + (ex === currentExercise ? " is-active" : "") + '" data-id="' + escapeAttr(ex.id) + '">' +
+        '<span class="exercise-card__title">' + escapeAttr(ex.title) + "</span>" +
+        (ex.short ? '<span class="exercise-card__desc">' + escapeAttr(ex.short) + "</span>" : "") +
+        "</button>";
+    }).join("");
+    root.querySelectorAll(".exercise-card").forEach(function (card) {
+      card.addEventListener("click", function () {
+        var ex = exercises.filter(function (e) { return e.id === card.dataset.id; })[0];
+        if (ex) selectExercise(ex);
+      });
+    });
   }
 
   // ---------- Rendering: Feldliste (Excel-Feldliste: Checkbox-artige Zeilen, kein Chip-Look) ----------
@@ -2344,14 +2521,7 @@
   });
 
   document.getElementById("btn-reset").addEventListener("click", function () {
-    zones = { filter: [], columns: [], rows: [], values: [] };
-    dateGroupLevels = {};
-    filterSelections = {};
-    rowLabelHidden = [];
-    rowLabelSortDir = null;
-    selectedField = null;
-    selectedFieldZone = null;
-    feedbackEl.classList.remove("show", "correct", "incorrect");
+    resetExerciseState();
     renderFieldList();
     renderAll();
   });
@@ -2362,6 +2532,8 @@
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
   });
 
+  renderLevelTabs();
+  renderExercisePicker();
   renderExerciseText();
   renderFieldList();
   renderAll();
