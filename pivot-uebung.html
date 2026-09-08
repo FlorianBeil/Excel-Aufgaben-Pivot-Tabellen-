@@ -416,6 +416,31 @@
     color: var(--text-primary);
     padding: 0.25rem 0;
   }
+
+  /* Rechtsklick-Kontextmenü auf einer Wertezelle: "Werte anzeigen als" */
+  .value-context-menu {
+    position: absolute;
+    z-index: 6;
+    min-width: 210px;
+    background: #fff;
+    border: 1px solid var(--grid-gray);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    padding: 0.25rem 0;
+  }
+  .vcm-header {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.2rem;
+  }
+  .vcm-check { color: var(--excel-green); float: right; }
   .rlm-item {
     padding: 0.3rem 0.7rem;
     cursor: pointer;
@@ -823,11 +848,9 @@
     min-width: 0;
   }
 
-  .zone-chip--multiline .agg-select,
-  .zone-chip--multiline .showas-select {
+  .zone-chip--multiline .agg-select {
     width: 100%;
   }
-  .zone-chip--multiline .showas-select { margin-top: 0.25rem; }
 
   .dategroup-pills {
     display: flex;
@@ -853,8 +876,7 @@
     color: #fff;
   }
 
-  .zone-chip .agg-select,
-  .zone-chip .showas-select {
+  .zone-chip .agg-select {
     font-family: var(--font-body);
     font-size: 0.72rem;
     color: var(--text-primary);
@@ -864,6 +886,20 @@
     padding: 0.1rem 0.3rem;
     cursor: pointer;
   }
+
+  /* Pfeiltasten zum Verschieben eines Felds innerhalb derselben Zone (nur
+     sichtbar, wenn dort mehr als ein Feld liegt). */
+  .chip-reorder {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.65rem;
+    line-height: 1;
+    padding: 0.1rem 0.15rem;
+    flex-shrink: 0;
+  }
+  .chip-reorder:hover { color: var(--excel-green-dark); }
 
   .dropzone {
     border: 1.5px dashed var(--grid-gray);
@@ -1751,11 +1787,11 @@
       short: "„Werte anzeigen als“ statt Zellformatierung.",
       title: "Umsatzanteil jeder Kategorie am Gesamtumsatz in Prozent",
       intro: "<p>Zeige, wie viel Prozent jede Kategorie zum <strong>Gesamtumsatz</strong> beiträgt.</p>" +
-        '<p class="goal">Das ist keine reine Formatierungsfrage (ein Prozentzeichen anhängen reicht nicht) — nutze die Einstellung „Werte anzeigen als“ im „Werte“-Chip.</p>',
+        '<p class="goal">Das ist keine reine Formatierungsfrage (ein Prozentzeichen anhängen reicht nicht) — nutze die Einstellung „Werte anzeigen als“ direkt in der Pivot-Tabelle.</p>',
       hints: [
         "Kategorie gehört in <strong>Zeilen</strong>, Umsatz mit „Summe“ in <strong>Werte</strong>.",
-        "Im „Werte“-Chip gibt es unter der Aggregation ein zweites Dropdown: <strong>„Werte anzeigen als“</strong>.",
-        "Stelle es von „Normal“ auf <strong>„% vom Gesamtergebnis“</strong> um — Excel berechnet den Anteil dann selbst, du musst nichts manuell durch die Gesamtsumme teilen."
+        "Klicke mit der <strong>rechten Maustaste</strong> auf eine der Umsatz-Wertezellen in der Pivot-Tabelle — nicht auf den Chip im Panel rechts.",
+        "Wähle im Kontextmenü unter „Werte anzeigen als“ statt „Normal“ die Option <strong>„% vom Gesamtergebnis“</strong> — Excel berechnet den Anteil dann selbst, du musst nichts manuell durch die Gesamtsumme teilen."
       ],
       solution: {
         rows: ["Kategorie"],
@@ -1919,6 +1955,23 @@
 
   function addFieldToZone(zoneKey, fieldName) {
     addToZoneState(zoneKey, fieldName);
+    renderAll();
+  }
+
+  // Vertauscht ein Feld mit seinem Nachbarn innerhalb derselben Zone (direction
+  // -1 = nach oben, +1 = nach unten) — z.B. um bei zwei Feldern in Zeilen
+  // (Region + Land) festzulegen, welches außen/innen gruppiert wird.
+  function moveFieldWithinZone(zoneKey, fieldName, direction) {
+    var arr = zones[zoneKey];
+    var idx = zoneKey === "values"
+      ? arr.findIndex(function (v) { return v.field === fieldName; })
+      : arr.indexOf(fieldName);
+    if (idx === -1) return;
+    var newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= arr.length) return;
+    var tmp = arr[idx];
+    arr[idx] = arr[newIdx];
+    arr[newIdx] = tmp;
     renderAll();
   }
 
@@ -2135,25 +2188,29 @@
     var showDateGroups = zoneKey === "rows" || zoneKey === "columns";
 
     var html = "";
-    entries.forEach(function (entry) {
+    entries.forEach(function (entry, entryIdx) {
       var fieldName = entry.field;
       var aggControl = "";
       if (zoneKey === "values") {
+        // Nur die Berechnungsart (Summe/Anzahl/…) steht hier im Panel — "Werte
+        // anzeigen als" (Normal / % vom Gesamtergebnis) gehört per Rechtsklick
+        // auf die Wertezelle in der Pivot-Tabelle selbst, genau wie in echtem
+        // Excel (siehe openValueCellContextMenu()).
         var options = aggOptionsFor(fieldName).map(function (opt) {
           var sel = opt === entry.agg ? " selected" : "";
           return '<option value="' + opt + '"' + sel + ">" + opt + "</option>";
         }).join("");
         aggControl = '<select class="agg-select" data-field="' + fieldName + '">' + options + "</select>";
-        // "Werte anzeigen als" — entspricht Excels gleichnamiger Einstellung:
-        // zeigt statt des Rohwerts den Anteil am Gesamtergebnis in Prozent.
-        var showAsOptions = [
-          { value: "", label: "Normal" },
-          { value: "percentOfTotal", label: "% vom Gesamtergebnis" }
-        ].map(function (o) {
-          var sel = (entry.showAs || "") === o.value ? " selected" : "";
-          return '<option value="' + o.value + '"' + sel + ">" + o.label + "</option>";
-        }).join("");
-        aggControl += '<select class="showas-select" data-field="' + fieldName + '">' + showAsOptions + "</select>";
+      }
+
+      // Bei mehreren Feldern in derselben Zone (z.B. Region + Land in Zeilen)
+      // legt die Reihenfolge fest, welches Feld außen/innen gruppiert bzw. wie
+      // die Wertespalten angeordnet werden — per Pfeiltasten verschiebbar.
+      var reorderControl = "";
+      if (entries.length > 1) {
+        reorderControl =
+          (entryIdx > 0 ? '<button class="chip-reorder" type="button" data-dir="-1" aria-label="Nach oben">▲</button>' : "") +
+          (entryIdx < entries.length - 1 ? '<button class="chip-reorder" type="button" data-dir="1" aria-label="Nach unten">▼</button>' : "");
       }
 
       var isDateField = showDateGroups && FIELDS[fieldName].type === "date";
@@ -2174,6 +2231,7 @@
       // um Platz und laufen seitlich über den Kartenrand hinaus.
       var head = '<span class="field-icon">' + FIELDS[fieldName].icon + "</span>" +
         '<span class="chip-text">' + fieldName + "</span>" +
+        reorderControl +
         '<button class="chip-remove" type="button" aria-label="Entfernen">×</button>';
 
       // Ein bereits platziertes Feld ist selbst wieder draggable (data-zone
@@ -2200,6 +2258,14 @@
       });
     });
 
+    el.querySelectorAll(".chip-reorder").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var chip = btn.closest(".zone-chip");
+        moveFieldWithinZone(chip.dataset.zone, chip.dataset.field, parseInt(btn.dataset.dir, 10));
+      });
+    });
+
     el.querySelectorAll(".zone-chip").forEach(function (chip) {
       chip.addEventListener("dragstart", function (e) {
         e.dataTransfer.setData("text/plain", chip.dataset.field);
@@ -2211,7 +2277,7 @@
         // Klicks auf Entfernen-Button, Aggregations-Dropdown oder Datums-Pills
         // werden von deren eigenen Handlern behandelt (stopPropagation) bzw.
         // sollen hier keine Verschiebe-Auswahl auslösen.
-        if (e.target.closest(".chip-remove") || e.target.closest(".agg-select") || e.target.closest(".showas-select") || e.target.closest(".dategroup-pills")) return;
+        if (e.target.closest(".chip-remove") || e.target.closest(".chip-reorder") || e.target.closest(".agg-select") || e.target.closest(".dategroup-pills")) return;
         var fieldName = chip.dataset.field;
         var zone = chip.dataset.zone;
         if (selectedField === fieldName && selectedFieldZone === zone) {
@@ -2231,12 +2297,6 @@
         select.addEventListener("click", function (e) { e.stopPropagation(); });
         select.addEventListener("change", function () {
           setAgg(select.dataset.field, select.value);
-        });
-      });
-      el.querySelectorAll(".showas-select").forEach(function (select) {
-        select.addEventListener("click", function (e) { e.stopPropagation(); });
-        select.addEventListener("change", function () {
-          setShowAs(select.dataset.field, select.value || null);
         });
       });
     }
@@ -2630,6 +2690,52 @@
     valueFilterFormOpen = false;
   }
 
+  // Rechtsklick-Kontextmenü auf einer Wertezelle — "Werte anzeigen als"
+  // (Normal / % vom Gesamtergebnis) gehört hierher statt ins Feld-Panel,
+  // genau wie im echten Excel.
+  function closeValueCellContextMenu() {
+    var el = document.getElementById("value-context-menu");
+    if (el) el.remove();
+  }
+
+  function openValueCellContextMenu(cell, clientX, clientY) {
+    closeValueCellContextMenu();
+    closeFilterDropdown();
+    closeRowLabelFilterMenu();
+    var fieldName = cell.dataset.vfField;
+    var agg = cell.dataset.vfAgg;
+    var entry = zones.values.find(function (v) { return v.field === fieldName && v.agg === agg; });
+    if (!entry) return;
+    var current = entry.showAs || "";
+    var canvas = document.getElementById("sheet-canvas");
+    var canvasRect = canvas.getBoundingClientRect();
+    var left = clientX - canvasRect.left + canvas.scrollLeft;
+    var top = clientY - canvasRect.top + canvas.scrollTop;
+    var options = [
+      { value: "", label: "Normal" },
+      { value: "percentOfTotal", label: "% vom Gesamtergebnis" }
+    ];
+    var html = '<div class="value-context-menu" id="value-context-menu">' +
+      '<div class="vcm-header">Werte anzeigen als</div>' +
+      options.map(function (o) {
+        return '<div class="rlm-item" data-value="' + o.value + '">' + escapeAttr(o.label) +
+          (current === o.value ? ' <span class="vcm-check">✓</span>' : "") + "</div>";
+      }).join("") +
+      "</div>";
+    canvas.insertAdjacentHTML("beforeend", html);
+    var menu = document.getElementById("value-context-menu");
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var item = e.target.closest("[data-value]");
+      if (!item) return;
+      setShowAs(fieldName, item.dataset.value || null);
+      closeValueCellContextMenu();
+      renderPivot();
+    });
+  }
+
   function rowLabelMenuCombos() {
     return computeGroupCombos(zones.rows, getFilteredData(), dateGroupLevels);
   }
@@ -2803,6 +2909,7 @@
   document.addEventListener("click", function (e) {
     if (!e.target.closest(".filter-dropdown") && !e.target.closest(".filter-value-cell")) closeFilterDropdown();
     if (!e.target.closest(".rowlabel-filter-menu") && !e.target.closest(".rowlabel-filter-cell")) closeRowLabelFilterMenu();
+    if (!e.target.closest(".value-context-menu")) closeValueCellContextMenu();
   });
 
   function positionEmptyOverlay(canvas) {
@@ -2971,7 +3078,8 @@
             dataRow.push({
               html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
               cls: "sheet-cell--value" + (entry.isGroup ? " row-group-subtotal" : ""),
-              attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"'
+              attrs: ' data-addr="' + colLetter + worksheetRow + '" data-formula="' + escapeAttr(formula) + '"' +
+                ' data-vf-field="' + escapeAttr(cm.vf.field) + '" data-vf-agg="' + escapeAttr(cm.vf.agg) + '"'
             });
           });
           dataRow.push({ html: "", cls: "sheet-gap" });
@@ -2988,7 +3096,8 @@
           totalRow.push({
             html: formatAggResult(cm.vf.agg, cm.vf.field, val, cm.vf.showAs),
             cls: "sheet-cell--value cell-total",
-            attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"'
+            attrs: ' data-addr="' + colLetter + totalRowNum + '" data-formula="' + escapeAttr(formula) + '"' +
+              ' data-vf-field="' + escapeAttr(cm.vf.field) + '" data-vf-agg="' + escapeAttr(cm.vf.agg) + '"'
           });
         });
         totalRow.push({ html: "", cls: "sheet-gap" });
@@ -3118,8 +3227,17 @@
     }
     closeFilterDropdown();
     closeRowLabelFilterMenu();
+    closeValueCellContextMenu();
     var cell = e.target.closest(".sheet-cell--value");
     if (cell) activateCell(cell);
+  });
+
+  document.getElementById("sheet-canvas").addEventListener("contextmenu", function (e) {
+    var cell = e.target.closest(".sheet-cell--value");
+    if (!cell) return;
+    e.preventDefault();
+    activateCell(cell);
+    openValueCellContextMenu(cell, e.clientX, e.clientY);
   });
 
   function renderAll() {
