@@ -1340,15 +1340,16 @@
   // (Übung "je Jahr") überhaupt mehr als eine Gruppe ergibt.
   function buildSalesDataset() {
     var rand = mulberry32(20260101);
-    // Regionsnamen sind bewusst pro Land eigenständig (nicht die bloßen
-    // Himmelsrichtungen Nord/Ost/Süd/West für beide Länder) — sonst wirkt es
-    // unplausibel, dass z.B. "West" mal zu Deutschland, mal zu Österreich
-    // gehören könnte.
-    var REGIONS = ["Norddeutschland", "Westdeutschland", "Ostösterreich", "Südösterreich"];
-    var REGION_BASE = { Norddeutschland: 900, Westdeutschland: 1250, "Ostösterreich": 700, "Südösterreich": 1100 };
-    // Jede Region liegt für diese Übungen fest in einem Land — ergibt eine
-    // echte zweistufige Land→Region-Hierarchie für die "nach Land"-Übung.
-    var REGION_LAND = { Norddeutschland: "Deutschland", Westdeutschland: "Deutschland", "Ostösterreich": "Österreich", "Südösterreich": "Österreich" };
+    // Echte, in Vertrieb/Controlling gebräuchliche Ländergruppen statt
+    // beliebiger Himmelsrichtungen — jede Region fasst mehrere Länder
+    // zusammen, das ergibt eine plausible 1-zu-viele Region→Land-Hierarchie.
+    var REGION_COUNTRIES = {
+      DACH: ["Deutschland", "Österreich", "Schweiz"],
+      Benelux: ["Niederlande", "Belgien", "Luxemburg"],
+      Nordics: ["Schweden", "Dänemark", "Norwegen", "Finnland"]
+    };
+    var REGIONS = Object.keys(REGION_COUNTRIES);
+    var REGION_BASE = { DACH: 1200, Benelux: 850, Nordics: 950 };
     function serialToDate(days) {
       var d = new Date(Date.UTC(2025, 0, 1));
       d.setUTCDate(d.getUTCDate() + days);
@@ -1359,10 +1360,12 @@
     for (var i = 0; i < dayCount; i++) {
       var date = serialToDate(i);
       var region = REGIONS[Math.floor(rand() * REGIONS.length)];
+      var countries = REGION_COUNTRIES[region];
+      var land = countries[Math.floor(rand() * countries.length)];
       var base = REGION_BASE[region];
       var umsatz = Math.round(base + (rand() - 0.4) * 700);
       if (umsatz < 50) umsatz = 50;
-      rows.push({ Datum: date, Region: region, Land: REGION_LAND[region], Umsatz: umsatz });
+      rows.push({ Datum: date, Region: region, Land: land, Umsatz: umsatz });
     }
     return {
       fields: {
