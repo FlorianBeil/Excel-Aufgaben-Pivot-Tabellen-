@@ -737,44 +737,162 @@
   }
   .data-model-toggle input { margin: 0; }
 
-  .add-calc-field-btn {
-    background: none;
-    border: none;
-    color: var(--excel-green-dark);
-    font-family: var(--font-body);
-    font-weight: 600;
-    font-size: 0.74rem;
-    cursor: pointer;
-    padding: 0.15rem 0;
-    text-align: left;
-  }
-  .add-calc-field-btn:hover { text-decoration: underline; }
-
-  #calc-field-form {
+  /* ---------- Menüband-Nachbau (nur "PivotTable-Analyse" ist funktional —
+     "Pivot"/"Entwurf" sind wie in echtem Excel weitere Reiter, hier aber rein
+     dekorativ) ---------- */
+  .excel-ribbon {
     background: var(--header-gray);
-    border: 1px solid var(--grid-gray);
-    border-radius: 6px;
-    padding: 0.5rem;
+    border-bottom: 1px solid var(--grid-gray);
+    font-family: var(--font-body);
+    position: relative;
+  }
+  .excel-ribbon__tabs {
+    display: flex;
+    gap: 1.1rem;
+    padding: 0.4rem 0.9rem 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .excel-ribbon__tab { padding-bottom: 0.35rem; }
+  .excel-ribbon__tab--active {
+    color: var(--text-primary);
+    font-weight: 700;
+    border-bottom: 2px solid var(--excel-green);
+  }
+  .excel-ribbon__row {
+    display: flex;
+    align-items: stretch;
+    padding: 0.3rem 0.9rem 0.35rem;
+    background: #fff;
+  }
+  .excel-ribbon__group {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    font-size: 0.76rem;
+    align-items: center;
+    border-right: 1px solid var(--border-color);
+    padding: 0 0.8rem 0 0;
   }
-  #calc-field-form input, #calc-field-form select {
-    font-family: var(--font-body);
-    font-size: 0.76rem;
-    border: 1px solid var(--grid-gray);
+  .excel-ribbon__buttons { display: flex; gap: 0.3rem; }
+  .excel-ribbon__btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    min-width: 4.4rem;
+    background: none;
+    border: 1px solid transparent;
     border-radius: 4px;
-    padding: 0.2rem 0.35rem;
-    width: 100%;
+    padding: 0.3rem 0.4rem;
+    font-family: var(--font-body);
+    font-size: 0.68rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    line-height: 1.15;
   }
-  .calc-field-formula-row {
+  .excel-ribbon__btn:not(:disabled):hover { background: var(--excel-green-tint); border-color: var(--excel-green); }
+  .excel-ribbon__btn:disabled { color: var(--text-muted); cursor: default; opacity: 0.55; }
+  .excel-ribbon__btn-icon { font-size: 1.15rem; }
+  .excel-ribbon__btn-caret { font-size: 0.6rem; color: var(--text-muted); }
+  .excel-ribbon__group-label {
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+  }
+  .excel-ribbon__menu {
+    position: absolute;
+    z-index: 7;
+    top: 100%;
+    left: 0.9rem;
+    min-width: 220px;
+    background: #fff;
+    border: 1px solid var(--grid-gray);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    padding: 0.25rem 0;
+  }
+
+  /* ---------- "Berechnetes Feld einfügen"-Dialog (Menüband → PivotTable-
+     Analyse → Felder, Elemente und Gruppen → Berechnetes Feld …) ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 30, 22, 0.35);
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    justify-content: center;
+    z-index: 50;
   }
-  .calc-field-formula-row select { width: auto; flex: 1; min-width: 0; }
-  .calc-field-actions { display: flex; gap: 0.4rem; }
+  .calc-field-dialog {
+    background: #fff;
+    width: 420px;
+    max-width: calc(100vw - 2rem);
+    border-radius: 6px;
+    box-shadow: 0 24px 60px rgba(11, 92, 48, 0.28);
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+  .calc-field-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    background: var(--header-gray);
+    border-bottom: 1px solid var(--grid-gray);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .calc-field-dialog__close {
+    background: none;
+    border: none;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.1rem 0.3rem;
+  }
+  .calc-field-dialog__close:hover { color: var(--text-primary); }
+  .calc-field-dialog__body { padding: 0.9rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .calc-field-dialog__row { display: flex; align-items: center; gap: 0.5rem; }
+  .calc-field-dialog__row label { width: 4rem; flex-shrink: 0; font-size: 0.82rem; }
+  .calc-field-dialog__row input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    border: 1px solid var(--grid-gray);
+    border-radius: 3px;
+    padding: 0.3rem 0.5rem;
+  }
+  .calc-field-dialog__error {
+    background: var(--error-red-tint);
+    color: var(--error-red);
+    border: 1px solid var(--error-red);
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.78rem;
+  }
+  .calc-field-dialog__fields-label { font-size: 0.82rem; }
+  .calc-field-dialog__fields-list {
+    border: 1px solid var(--grid-gray);
+    border-radius: 3px;
+    max-height: 160px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+  }
+  .cf-field-item { padding: 0.28rem 0.6rem; cursor: pointer; }
+  .cf-field-item:hover { background: var(--excel-green-tint); }
+  .cf-field-item.selected { background: var(--excel-blue-tint); font-weight: 600; }
+  .calc-field-dialog__insert-btn { align-self: flex-start; }
+  .calc-field-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--header-gray);
+    border-top: 1px solid var(--grid-gray);
+  }
 
   .pivot-fields-panel__list {
     display: flex;
@@ -1244,6 +1362,39 @@
   </section>
 
   <section class="card excel-window">
+    <!-- Nachbau des "PivotTable-Analyse"-Menüband-Kontextreiters: echtes Excel
+         bietet "Berechnetes Feld" nur hier an (Gruppe "Berechnungen"), nicht
+         als Sidebar-Button — siehe openCalcFieldDialog() weiter unten. "Pivot"
+         und "Entwurf" sind rein dekorative Reiter (wie die übrigen Menüband-
+         Reiter, die für diesen Prototyp keine Funktion brauchen). -->
+    <div class="excel-ribbon">
+      <div class="excel-ribbon__tabs">
+        <span class="excel-ribbon__tab">Pivot</span>
+        <span class="excel-ribbon__tab excel-ribbon__tab--active">PivotTable-Analyse</span>
+        <span class="excel-ribbon__tab">Entwurf</span>
+      </div>
+      <div class="excel-ribbon__row">
+        <div class="excel-ribbon__group">
+          <div class="excel-ribbon__buttons">
+            <button type="button" class="excel-ribbon__btn" id="ribbon-fields-groups-btn">
+              <span class="excel-ribbon__btn-icon">🧮</span>
+              <span>Felder, Elemente und Gruppen</span>
+              <span class="excel-ribbon__btn-caret">▾</span>
+            </button>
+            <button type="button" class="excel-ribbon__btn" disabled>
+              <span class="excel-ribbon__btn-icon">🧊</span>
+              <span>OLAP-Tools</span>
+              <span class="excel-ribbon__btn-caret">▾</span>
+            </button>
+            <button type="button" class="excel-ribbon__btn" disabled>
+              <span class="excel-ribbon__btn-icon">🔗</span>
+              <span>Beziehungen</span>
+            </button>
+          </div>
+          <span class="excel-ribbon__group-label">Berechnungen</span>
+        </div>
+      </div>
+    </div>
     <div class="formula-bar">
       <span class="formula-namebox" id="formula-namebox"></span>
       <span class="formula-fx" aria-hidden="true">𝑓x</span>
@@ -1258,8 +1409,6 @@
           Dem Datenmodell hinzufügen
         </label>
         <div class="pivot-fields-panel__list" id="field-list"></div>
-        <button type="button" class="add-calc-field-btn" id="add-calc-field-btn">+ Feld hinzufügen …</button>
-        <div id="calc-field-form" hidden></div>
         <div class="pivot-fields-panel__areas">
           <div class="area-box" data-zone="filter">
             <span class="area-box__label">Filter</span>
@@ -1673,23 +1822,155 @@
     return 0;
   }
 
-  // Berechnete Felder ("Feld hinzufügen …", z.B. Deckungsbeitragsmarge =
-  // Deckungsbeitrag ÷ Umsatz): existieren nicht als echte Spalte in den
-  // Rohdaten. Excel berechnet sie, indem es die beiden Basisfelder zuerst
-  // jeweils SUMMIERT und danach erst die Formel anwendet — genau das ist der
-  // Grund, warum man eine Marge nicht als normales Wertfeld mitteln/summieren
-  // darf: das würde jede Zeile einzeln (statt die Summen) verrechnen.
-  var calculatedFields = {};
+  // Berechnete Felder (Menüband → PivotTable-Analyse → "Felder, Elemente und
+  // Gruppen" → "Berechnetes Feld …", z.B. Deckungsbeitragsmarge =
+  // Deckungsbeitrag / Umsatz): existieren nicht als echte Spalte in den
+  // Rohdaten. Excel berechnet sie, indem es jedes in der Formel verwendete
+  // Basisfeld zuerst jeweils SUMMIERT und danach erst die Formel auf diese
+  // Summen anwendet — genau das ist der Grund, warum man eine Marge nicht
+  // als normales Wertfeld mitteln/summieren darf: das würde jede Zeile
+  // einzeln (statt die Summen) verrechnen.
+  //
+  // Die Formel selbst ist ein frei getippter Ausdruck (Feldnamen, Zahlen,
+  // + - * /, Klammern) — dafür ein kleiner Tokenizer/Parser/Auswerter statt
+  // des früheren starren "Feld A [Operator] Feld B".
+  var calculatedFields = {}; // name -> { formula: <Originaltext>, ast: <Baum>, fieldsUsed: [...] }
+
+  function tokenizeFormula(str, fieldNames) {
+    // Längste Feldnamen zuerst prüfen, damit z.B. "Einzelpreis" nicht schon
+    // an einem kürzeren, zufällig als Präfix passenden Feldnamen abbricht.
+    var sorted = fieldNames.slice().sort(function (a, b) { return b.length - a.length; });
+    var tokens = [];
+    var i = 0;
+    while (i < str.length) {
+      var ch = str.charAt(i);
+      if (/\s/.test(ch)) { i++; continue; }
+      if ("+-*/()".indexOf(ch) !== -1) { tokens.push({ type: "op", value: ch }); i++; continue; }
+      if (/[0-9]/.test(ch)) {
+        var j = i;
+        while (j < str.length && /[0-9.]/.test(str.charAt(j))) j++;
+        var num = parseFloat(str.slice(i, j));
+        if (isNaN(num)) throw new Error('Ungültige Zahl: "' + str.slice(i, j) + '".');
+        tokens.push({ type: "num", value: num });
+        i = j; continue;
+      }
+      var matched = null;
+      for (var k = 0; k < sorted.length; k++) {
+        if (str.substr(i, sorted[k].length) === sorted[k]) { matched = sorted[k]; break; }
+      }
+      if (matched) { tokens.push({ type: "field", value: matched }); i += matched.length; continue; }
+      throw new Error('Unbekanntes Zeichen oder Feld an Position ' + (i + 1) + ': "' + ch + '".');
+    }
+    return tokens;
+  }
+
+  // Rekursiver Abstiegs-Parser mit klassischer Operatorpriorität
+  // (*, / vor +, -) und Klammern — baut einen kleinen Ausdrucksbaum.
+  function parseFormulaTokens(tokens) {
+    var pos = 0;
+    function peek() { return tokens[pos]; }
+    function next() { return tokens[pos++]; }
+    function parseExpr() {
+      var node = parseTerm();
+      while (peek() && peek().type === "op" && (peek().value === "+" || peek().value === "-")) {
+        var op = next().value;
+        node = { type: "binop", op: op, left: node, right: parseTerm() };
+      }
+      return node;
+    }
+    function parseTerm() {
+      var node = parseFactor();
+      while (peek() && peek().type === "op" && (peek().value === "*" || peek().value === "/")) {
+        var op = next().value;
+        node = { type: "binop", op: op, left: node, right: parseFactor() };
+      }
+      return node;
+    }
+    function parseFactor() {
+      var t = peek();
+      if (!t) throw new Error("Die Formel ist unvollständig.");
+      if (t.type === "op" && t.value === "-") { next(); return { type: "neg", value: parseFactor() }; }
+      if (t.type === "op" && t.value === "+") { next(); return parseFactor(); }
+      if (t.type === "op" && t.value === "(") {
+        next();
+        var node = parseExpr();
+        if (!peek() || peek().value !== ")") throw new Error("Schließende Klammer fehlt.");
+        next();
+        return node;
+      }
+      if (t.type === "num") { next(); return { type: "num", value: t.value }; }
+      if (t.type === "field") { next(); return { type: "field", value: t.value }; }
+      throw new Error("Unerwartetes Zeichen in der Formel.");
+    }
+    var result = parseExpr();
+    if (pos < tokens.length) throw new Error("Unerwartete Zeichen am Ende der Formel.");
+    return result;
+  }
+
+  function evalFormulaAst(node, sums) {
+    if (node.type === "num") return node.value;
+    if (node.type === "field") return sums[node.value] || 0;
+    if (node.type === "neg") return -evalFormulaAst(node.value, sums);
+    var l = evalFormulaAst(node.left, sums), r = evalFormulaAst(node.right, sums);
+    if (node.op === "+") return l + r;
+    if (node.op === "-") return l - r;
+    if (node.op === "*") return l * r;
+    return r ? l / r : 0; // "/"
+  }
+
+  // Kanonische Textform des Baums (voll geklammert, ohne Leerzeichen) — für
+  // den Ergebnisvergleich beim Prüfen: so zählt "Deckungsbeitrag/Umsatz"
+  // genauso wie "Deckungsbeitrag / Umsatz", unabhängig vom eigenen
+  // Feldnamen, den der Schüler seinem berechneten Feld gegeben hat.
+  function serializeFormulaAst(node) {
+    if (node.type === "num") return String(node.value);
+    if (node.type === "field") return node.value;
+    if (node.type === "neg") return "-(" + serializeFormulaAst(node.value) + ")";
+    return "(" + serializeFormulaAst(node.left) + node.op + serializeFormulaAst(node.right) + ")";
+  }
+
+  function collectFormulaFields(node, out) {
+    if (node.type === "field") { if (out.indexOf(node.value) === -1) out.push(node.value); return; }
+    if (node.type === "neg") { collectFormulaFields(node.value, out); return; }
+    if (node.type === "binop") { collectFormulaFields(node.left, out); collectFormulaFields(node.right, out); }
+  }
+
+  // Parst eine vom Schüler getippte Formel (führendes "=" optional) gegen die
+  // aktuell verfügbaren Basisfelder (keine bereits berechneten Felder — genau
+  // wie in echtem Excel zeigt die "Felder"-Liste im Dialog nur Quellfelder).
+  // Wirft bei jedem Fehler eine Error mit einer für Schüler verständlichen
+  // deutschen Meldung.
+  function parseCalcFormula(rawFormula) {
+    var str = rawFormula.trim();
+    if (str.charAt(0) === "=") str = str.slice(1).trim();
+    if (!str) throw new Error("Die Formel ist leer.");
+    var fieldNames = Object.keys(FIELDS).filter(function (f) { return !FIELDS[f].calculated; });
+    var tokens = tokenizeFormula(str, fieldNames);
+    if (!tokens.length) throw new Error("Die Formel ist leer.");
+    var ast = parseFormulaTokens(tokens);
+    var fieldsUsed = [];
+    collectFormulaFields(ast, fieldsUsed);
+    if (!fieldsUsed.length) throw new Error("Die Formel muss mindestens ein Feld enthalten.");
+    return { ast: ast, fieldsUsed: fieldsUsed };
+  }
+
+  // Baut einen calculatedFields-Eintrag aus einer Formel (wirft bei
+  // Formelfehlern) — von der Übungs-Initialisierung (verstecktes
+  // Referenzfeld) und vom "Berechnetes Feld einfügen"-Dialog gleichermaßen
+  // genutzt.
+  function buildCalcFieldEntry(rawFormula) {
+    var parsed = parseCalcFormula(rawFormula);
+    return { formula: rawFormula, ast: parsed.ast, fieldsUsed: parsed.fieldsUsed };
+  }
 
   function aggregateForValueField(vf, rows) {
     var cf = calculatedFields[vf.field];
     if (!cf) return aggregate(vf.agg, rows.map(function (d) { return d[vf.field]; }));
-    var a = aggregate("Summe", rows.map(function (d) { return d[cf.fieldA]; }));
-    var b = aggregate("Summe", rows.map(function (d) { return d[cf.fieldB]; }));
-    if (cf.op === "/") return b ? a / b : 0;
-    if (cf.op === "*") return a * b;
-    if (cf.op === "-") return a - b;
-    return a + b;
+    var sums = {};
+    cf.fieldsUsed.forEach(function (f) {
+      sums[f] = aggregate("Summe", rows.map(function (d) { return d[f]; }));
+    });
+    return evalFormulaAst(cf.ast, sums);
   }
 
   function formatPercent(n) {
@@ -2021,15 +2302,15 @@
       intro: "<p>Ermittle die <strong>Deckungsbeitragsmarge</strong> (Deckungsbeitrag ÷ Umsatz) je Kategorie.</p>" +
         '<p class="goal">Das ist keine Aggregationsfrage, sondern ein <strong>berechnetes Feld</strong>: Excel muss Deckungsbeitrag und Umsatz je Kategorie erst jeweils summieren und danach erst teilen — nicht die Marge jeder einzelnen Zeile berechnen und diese Einzelwerte dann mitteln. Letzteres gewichtet jede Zeile gleich stark, egal wie groß der Umsatz dahinter war, und verzerrt so das Ergebnis. Genau dieser Fehler ist in der Praxis besonders häufig.</p>',
       hints: [
-        "Klicke unter der Feldliste auf <strong>„+ Feld hinzufügen …“</strong>.",
-        "Vergib einen Namen (z.B. „Marge“) und wähle die Formel <strong>Deckungsbeitrag ÷ Umsatz</strong>.",
+        "Menüband: <strong>PivotTable-Analyse → Felder, Elemente und Gruppen → Berechnetes Feld …</strong>.",
+        "Vergib einen Namen (z.B. „Marge“) und trage die Formel <strong>= Deckungsbeitrag / Umsatz</strong> ein (Felder per Doppelklick oder „Feld einfügen“ aus der Liste übernehmen).",
         "Kategorie gehört in <strong>Zeilen</strong>, dein neues berechnetes Feld in <strong>Werte</strong>."
       ],
       // referenceCalcFields liegt bewusst auf Übungs-, nicht auf Lösungsebene —
       // openExercise() liest ex.referenceCalcFields, um das versteckte
       // Referenzfeld schon beim Öffnen der Übung zu registrieren (unabhängig
       // vom Namen, den der Schüler seinem eigenen berechneten Feld gibt).
-      referenceCalcFields: [{ name: "__marge_ref__", fieldA: "Deckungsbeitrag", op: "/", fieldB: "Umsatz" }],
+      referenceCalcFields: [{ name: "__marge_ref__", formula: "Deckungsbeitrag / Umsatz" }],
       solution: {
         rows: ["Kategorie"],
         columns: [],
@@ -2310,17 +2591,17 @@
     calculatedFields = {};
     // Manche Übungen brauchen eine berechnete Referenz-Formel für die
     // Bewertung, OHNE dass der Name im Feld-Panel auftaucht (der Student
-    // soll das Feld selbst über "+ Feld hinzufügen …" anlegen).
+    // soll das Feld selbst über das Menüband anlegen, siehe openCalcFieldDialog()).
     (ex.referenceCalcFields || []).forEach(function (rf) {
-      calculatedFields[rf.name] = { fieldA: rf.fieldA, op: rf.op, fieldB: rf.fieldB };
+      calculatedFields[rf.name] = buildCalcFieldEntry(rf.formula);
     });
     addedToDataModel = false;
-    calcFieldFormOpen = false;
+    closeCalcFieldDialog();
+    closeRibbonMenu();
     document.getElementById("data-model-checkbox").checked = false;
     resetExerciseState();
     renderExerciseText();
     renderFieldList();
-    renderCalcFieldForm();
     renderAll();
   }
 
@@ -2416,54 +2697,242 @@
   }
 
   // ---------- Rendering: Feldliste (Excel-Feldliste: Checkbox-artige Zeilen, kein Chip-Look) ----------
-  // ---------- Berechnetes Feld ("+ Feld hinzufügen …") ----------
-  var calcFieldFormOpen = false;
 
-  function renderCalcFieldForm() {
-    var container = document.getElementById("calc-field-form");
-    if (!calcFieldFormOpen) { container.hidden = true; container.innerHTML = ""; return; }
-    var numericFields = Object.keys(FIELDS).filter(function (f) { return isNumericType(FIELDS[f].type) && !FIELDS[f].calculated; });
-    if (numericFields.length < 2) {
-      container.hidden = false;
-      container.innerHTML = '<p style="margin:0;color:var(--text-muted);">Für ein berechnetes Feld werden mindestens zwei Zahlenfelder benötigt.</p>' +
-        '<div class="calc-field-actions"><button type="button" class="rlm-btn" data-action="calc-cancel">Schließen</button></div>';
+  // ---------- Menüband-Dropdown "Felder, Elemente und Gruppen" ----------
+  function closeRibbonMenu() {
+    var menu = document.getElementById("ribbon-fields-groups-menu");
+    if (menu) menu.remove();
+  }
+
+  function openRibbonMenu() {
+    if (document.getElementById("ribbon-fields-groups-menu")) { closeRibbonMenu(); return; }
+    var group = document.getElementById("ribbon-fields-groups-btn").closest(".excel-ribbon");
+    group.insertAdjacentHTML("beforeend",
+      '<div class="excel-ribbon__menu" id="ribbon-fields-groups-menu">' +
+        '<div class="rlm-item" data-action="open-calc-field-dialog">Berechnetes Feld …</div>' +
+        '<div class="rlm-item rlm-item--disabled">Berechnetes Element …</div>' +
+        '<div class="rlm-sep"></div>' +
+        '<div class="rlm-item rlm-item--disabled">Reihenfolge lösen</div>' +
+        '<div class="rlm-item rlm-item--disabled">Elemente auflisten</div>' +
+      "</div>"
+    );
+    document.getElementById("ribbon-fields-groups-menu").addEventListener("click", function (e) {
+      e.stopPropagation();
+      var item = e.target.closest("[data-action]");
+      if (!item) return;
+      if (item.dataset.action === "open-calc-field-dialog") {
+        closeRibbonMenu();
+        openCalcFieldDialog();
+      }
+    });
+  }
+
+  // ---------- "Berechnetes Feld einfügen"-Dialog (Nachbau des echten Excel-
+  // Dialogs unter Menüband → PivotTable-Analyse → Felder, Elemente und
+  // Gruppen → Berechnetes Feld …) ----------
+  var calcFieldNameCounter = 0;
+
+  function closeCalcFieldDialog() {
+    var overlay = document.getElementById("calc-field-modal");
+    if (overlay) overlay.remove();
+  }
+
+  // Fügt "text" an der aktuellen Cursor-/Auswahlposition des Formel-Felds ein
+  // (ersetzt eine evtl. Auswahl) — genau wie in echtem Excel beim Einfügen
+  // eines Felds per Doppelklick oder "Feld einfügen".
+  function insertIntoFormulaInput(text) {
+    var input = document.getElementById("cf-formula-input");
+    if (!input) return;
+    input.focus();
+    var start = input.selectionStart == null ? input.value.length : input.selectionStart;
+    var end = input.selectionEnd == null ? input.value.length : input.selectionEnd;
+    if (typeof input.setRangeText === "function") {
+      input.setRangeText(text, start, end, "end");
     } else {
-      container.hidden = false;
-      var fieldOptions = numericFields.map(function (f) { return '<option value="' + escapeAttr(f) + '">' + escapeAttr(f) + "</option>"; }).join("");
-      container.innerHTML =
-        '<input type="text" id="calc-field-name" placeholder="Name des neuen Felds, z.B. Marge">' +
-        '<div class="calc-field-formula-row">' +
-          '<select id="calc-field-a">' + fieldOptions + "</select>" +
-          '<select id="calc-field-op"><option value="/">÷</option><option value="*">×</option><option value="+">+</option><option value="-">−</option></select>' +
-          '<select id="calc-field-b">' + fieldOptions + "</select>" +
-        "</div>" +
-        '<div class="calc-field-actions">' +
-          '<button type="button" class="rlm-btn rlm-btn--primary" data-action="calc-submit">Hinzufügen</button>' +
-          '<button type="button" class="rlm-btn" data-action="calc-cancel">Abbrechen</button>' +
-        "</div>";
-      // Sinnvolle Vorbelegung für Fälle mit genau 2 Zahlenfeldern (Feld B
-      // direkt auf das zweite Feld statt wieder auf das erste).
-      if (numericFields.length >= 2) document.getElementById("calc-field-b").value = numericFields[1];
+      input.value = input.value.slice(0, start) + text + input.value.slice(end);
     }
-    container.querySelectorAll("[data-action]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        if (btn.dataset.action === "calc-cancel") {
-          calcFieldFormOpen = false;
-          renderCalcFieldForm();
-          return;
-        }
-        // calc-submit
-        var name = document.getElementById("calc-field-name").value.trim();
-        if (!name || FIELDS[name]) return; // Name fehlt oder ist schon vergeben
-        var fieldA = document.getElementById("calc-field-a").value;
-        var op = document.getElementById("calc-field-op").value;
-        var fieldB = document.getElementById("calc-field-b").value;
-        calculatedFields[name] = { fieldA: fieldA, op: op, fieldB: fieldB };
-        FIELDS[name] = { icon: "🧮", type: op === "/" ? "percent" : "number", calculated: true };
-        calcFieldFormOpen = false;
-        renderCalcFieldForm();
+  }
+
+  function showCalcFieldError(message) {
+    var el = document.getElementById("cf-error");
+    if (!el) return;
+    if (!message) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = message;
+  }
+
+  // Trägt Name + Formel eines bereits bestehenden berechneten Felds zur
+  // Bearbeitung in den Dialog ein — wie in echtem Excel, wenn man im
+  // Namensfeld ein vorhandenes berechnetes Feld auswählt.
+  function loadCalcFieldIntoDialog(name) {
+    var cf = calculatedFields[name];
+    if (!cf || !FIELDS[name]) return; // FIELDS[name] fehlt bei einem versteckten referenceCalcFields-Eintrag
+    document.getElementById("cf-name-input").value = name;
+    document.getElementById("cf-formula-input").value = cf.formula;
+    showCalcFieldError(null);
+  }
+
+  function renderCalcFieldsList(selectedField) {
+    var candidates = Object.keys(FIELDS).filter(function (f) { return !FIELDS[f].calculated; });
+    return candidates.map(function (f) {
+      var sel = f === selectedField ? " selected" : "";
+      return '<div class="cf-field-item' + sel + '" data-field="' + escapeAttr(f) + '">' + escapeAttr(f) + "</div>";
+    }).join("");
+  }
+
+  // Übernimmt Name + Formel aus dem Dialog als (neues oder bearbeitetes)
+  // berechnetes Feld. Gibt true bei Erfolg zurück, sonst false (mit
+  // angezeigter Fehlermeldung) — von "Hinzufügen" und "OK" gemeinsam genutzt.
+  function submitCalcFieldDialog() {
+    var name = document.getElementById("cf-name-input").value.trim();
+    var formula = document.getElementById("cf-formula-input").value;
+    if (!name) { showCalcFieldError("Bitte einen Namen für das Feld vergeben."); return false; }
+    // Ein Name ist vergeben, wenn er eine normale Spalte/ein sichtbares Feld
+    // trifft — ODER ein verstecktes referenceCalcFields-Referenzfeld einer
+    // Übung (existiert in calculatedFields, aber bewusst nicht in FIELDS).
+    var nameTaken = (FIELDS[name] && !FIELDS[name].calculated) || (calculatedFields[name] && !FIELDS[name]);
+    if (nameTaken) { showCalcFieldError('Der Name "' + name + '" ist bereits vergeben.'); return false; }
+    var entry;
+    try {
+      entry = buildCalcFieldEntry(formula);
+    } catch (err) {
+      showCalcFieldError(err.message || "Die Formel konnte nicht gelesen werden.");
+      return false;
+    }
+    calculatedFields[name] = entry;
+    if (!FIELDS[name]) {
+      var isRatio = entry.ast.type === "binop" && entry.ast.op === "/";
+      FIELDS[name] = { icon: "🧮", type: isRatio ? "percent" : "number", calculated: true };
+    }
+    showCalcFieldError(null);
+    renderFieldList();
+    renderZones();
+    renderPivot();
+    return true;
+  }
+
+  function refreshCalcFieldNameList() {
+    var list = document.getElementById("cf-name-list");
+    if (!list) return;
+    list.innerHTML = visibleCalcFieldNames().map(function (n) { return '<option value="' + escapeAttr(n) + '">'; }).join("");
+  }
+
+  function resetCalcFieldDialogForm() {
+    calcFieldNameCounter++;
+    var suggestedName = "Feld" + calcFieldNameCounter;
+    while (FIELDS[suggestedName]) { calcFieldNameCounter++; suggestedName = "Feld" + calcFieldNameCounter; }
+    var nameInput = document.getElementById("cf-name-input");
+    var formulaInput = document.getElementById("cf-formula-input");
+    nameInput.value = suggestedName;
+    formulaInput.value = "= 0";
+    // Cursor direkt auf die "0" setzen, damit ein sofort per Doppelklick
+    // eingefügtes Feld sie ersetzt statt anzuhängen — genau wie in echtem
+    // Excel beim frischen Öffnen des Dialogs.
+    formulaInput.setSelectionRange(2, 3);
+    showCalcFieldError(null);
+    document.querySelectorAll("#cf-fields-list .cf-field-item.selected").forEach(function (el) { el.classList.remove("selected"); });
+  }
+
+  // Nur "echte", im Feld-Panel sichtbare berechnete Felder — ein
+  // referenceCalcFields-Eintrag (verstecktes Referenzfeld einer Übung, siehe
+  // openExercise()) darf hier nicht auftauchen, sonst würde die Musterlösung
+  // über die Namensvorschläge verraten.
+  function visibleCalcFieldNames() {
+    return Object.keys(calculatedFields).filter(function (n) { return FIELDS[n] && FIELDS[n].calculated; });
+  }
+
+  function openCalcFieldDialog() {
+    closeCalcFieldDialog();
+    var existingNames = visibleCalcFieldNames();
+    document.body.insertAdjacentHTML("beforeend",
+      '<div class="modal-overlay" id="calc-field-modal">' +
+        '<div class="calc-field-dialog" role="dialog" aria-label="Berechnetes Feld einfügen">' +
+          '<div class="calc-field-dialog__header">' +
+            "<span>Berechnetes Feld einfügen</span>" +
+            '<button type="button" class="calc-field-dialog__close" data-action="cf-close" aria-label="Schließen">✕</button>' +
+          "</div>" +
+          '<div class="calc-field-dialog__body">' +
+            '<div class="calc-field-dialog__row">' +
+              "<label>Name:</label>" +
+              '<input type="text" id="cf-name-input" list="cf-name-list">' +
+              '<datalist id="cf-name-list">' + existingNames.map(function (n) { return '<option value="' + escapeAttr(n) + '">'; }).join("") + "</datalist>" +
+              '<button type="button" class="rlm-btn rlm-btn--primary" data-action="cf-add">Hinzufügen</button>' +
+            "</div>" +
+            '<div class="calc-field-dialog__row">' +
+              "<label>Formel:</label>" +
+              '<input type="text" id="cf-formula-input">' +
+              '<button type="button" class="rlm-btn" data-action="cf-delete">Löschen</button>' +
+            "</div>" +
+            '<div class="calc-field-dialog__error" id="cf-error" hidden></div>' +
+            '<div class="calc-field-dialog__fields-label">Felder:</div>' +
+            '<div class="calc-field-dialog__fields-list" id="cf-fields-list">' + renderCalcFieldsList(null) + "</div>" +
+            '<button type="button" class="rlm-btn calc-field-dialog__insert-btn" data-action="cf-insert-field">Feld einfügen</button>' +
+          "</div>" +
+          '<div class="calc-field-dialog__footer">' +
+            '<button type="button" class="btn btn-primary" data-action="cf-ok">OK</button>' +
+            '<button type="button" class="btn btn-secondary" data-action="cf-close">Schließen</button>' +
+          "</div>" +
+        "</div>" +
+      "</div>"
+    );
+    resetCalcFieldDialogForm();
+
+    var overlay = document.getElementById("calc-field-modal");
+    var nameInput = document.getElementById("cf-name-input");
+
+    // Ein vorhandenes berechnetes Feld im Namensfeld auswählen lädt dessen
+    // Formel zur Bearbeitung — wie in echtem Excel.
+    nameInput.addEventListener("change", function () {
+      if (calculatedFields[nameInput.value.trim()]) loadCalcFieldIntoDialog(nameInput.value.trim());
+    });
+
+    document.getElementById("cf-fields-list").addEventListener("click", function (e) {
+      var item = e.target.closest(".cf-field-item");
+      if (!item) return;
+      document.querySelectorAll("#cf-fields-list .cf-field-item.selected").forEach(function (el) { el.classList.remove("selected"); });
+      item.classList.add("selected");
+    });
+    document.getElementById("cf-fields-list").addEventListener("dblclick", function (e) {
+      var item = e.target.closest(".cf-field-item");
+      if (!item) return;
+      insertIntoFormulaInput(item.dataset.field);
+    });
+
+    overlay.addEventListener("mousedown", function (e) {
+      if (e.target === overlay) closeCalcFieldDialog();
+    });
+    overlay.addEventListener("click", function (e) {
+      var action = e.target.closest("[data-action]");
+      if (!action) return;
+      if (action.dataset.action === "cf-close") { closeCalcFieldDialog(); return; }
+      if (action.dataset.action === "cf-insert-field") {
+        var sel = document.querySelector("#cf-fields-list .cf-field-item.selected");
+        if (sel) insertIntoFormulaInput(sel.dataset.field);
+        return;
+      }
+      if (action.dataset.action === "cf-add") {
+        if (submitCalcFieldDialog()) { refreshCalcFieldNameList(); resetCalcFieldDialogForm(); }
+        return;
+      }
+      if (action.dataset.action === "cf-delete") {
+        var name = document.getElementById("cf-name-input").value.trim();
+        if (!calculatedFields[name] || !FIELDS[name]) { showCalcFieldError('Kein berechnetes Feld mit dem Namen "' + name + '" vorhanden.'); return; }
+        delete calculatedFields[name];
+        delete FIELDS[name];
+        // Bereits platzierte Werte-Einträge dieses Felds verlieren mit ihm
+        // ihre Grundlage — wie in echtem Excel verschwinden sie aus der
+        // Pivot-Tabelle.
+        zones.values = zones.values.filter(function (v) { return v.field !== name; });
         renderFieldList();
-      });
+        renderZones();
+        renderPivot();
+        refreshCalcFieldNameList();
+        resetCalcFieldDialogForm();
+        return;
+      }
+      if (action.dataset.action === "cf-ok") {
+        if (submitCalcFieldDialog()) closeCalcFieldDialog();
+      }
     });
   }
 
@@ -2523,11 +2992,12 @@
         var cf = calculatedFields[fieldName];
         if (cf) {
           // Berechnete Felder haben keine eigene Aggregation — Excel summiert
-          // die beiden Basisfelder immer zuerst und wendet die Formel danach
-          // an (siehe aggregateForValueField()); eine Auswahl hier wäre ein
+          // alle in der Formel verwendeten Basisfelder immer zuerst und
+          // wendet die Formel danach auf diese Summen an (siehe
+          // aggregateForValueField()); eine Auswahl hier wäre ein
           // wirkungsloses Dropdown.
-          var opSymbol = { "/": "÷", "*": "×", "+": "+", "-": "−" }[cf.op];
-          aggControl = '<div class="calc-field-note">berechnet: ' + escapeAttr(cf.fieldA) + " " + opSymbol + " " + escapeAttr(cf.fieldB) + "</div>";
+          var prettyFormula = cf.formula.replace(/^\s*=\s*/, "").replace(/\*/g, "×").replace(/\//g, "÷");
+          aggControl = '<div class="calc-field-note">berechnet: ' + escapeAttr(prettyFormula) + "</div>";
         } else {
           var options = aggOptionsFor(fieldName).map(function (opt) {
             var sel = opt === entry.agg ? " selected" : "";
@@ -3362,6 +3832,7 @@
     if (!e.target.closest(".filter-dropdown") && !e.target.closest(".filter-value-cell")) closeFilterDropdown();
     if (!e.target.closest(".rowlabel-filter-menu") && !e.target.closest(".rowlabel-filter-cell")) closeRowLabelFilterMenu();
     if (!e.target.closest(".value-context-menu")) closeValueCellContextMenu();
+    if (!e.target.closest(".excel-ribbon__menu") && !e.target.closest("#ribbon-fields-groups-btn")) closeRibbonMenu();
   });
 
   function positionEmptyOverlay(canvas) {
@@ -3475,7 +3946,7 @@
         // Gesamtwert über ALLE Daten, nicht nur die jeweilige Spalte/Zeile.
         var grandTotals = {};
         valueFields.forEach(function (vf) {
-          grandTotals[vf.agg + ":" + vf.field] = aggregateForValueField(vf, data);
+          grandTotals[valueFieldKey(vf)] = aggregateForValueField(vf, data);
         });
 
         function colFilterFor(cm) {
@@ -3493,7 +3964,7 @@
           var filterCol = colFilterFor(cm);
           var raw = aggregateForValueField(vf, filterCol(entry.data));
           if (vf.showAs === "percentOfTotal") {
-            var gt = grandTotals[vf.agg + ":" + vf.field];
+            var gt = grandTotals[valueFieldKey(vf)];
             return gt ? (raw / gt) * 100 : 0;
           }
           if (vf.showAs === "percentOfParentRow") {
@@ -3798,11 +4269,12 @@
   // gegenseitig überschreiben; (b) ein berechnetes Feld kann von Schüler und
   // Musterlösung unter komplett unterschiedlichem Namen angelegt sein (die
   // Übung registriert dafür ein verstecktes "referenceCalcFields"-Pendant,
-  // siehe openExercise()) — dort muss die FORMEL (fieldA/op/fieldB) zählen,
-  // nicht der frei gewählte Name.
+  // siehe openExercise()) — dort muss die FORMEL zählen (in kanonischer,
+  // whitespace-unabhängiger Form, siehe serializeFormulaAst()), nicht der
+  // frei gewählte Name.
   function valueFieldKey(vf) {
     var cf = calculatedFields[vf.field];
-    var fieldPart = cf ? ("calc:" + cf.fieldA + cf.op + cf.fieldB) : vf.field;
+    var fieldPart = cf ? ("calc:" + serializeFormulaAst(cf.ast)) : vf.field;
     return vf.agg + ":" + fieldPart + (vf.showAs ? ":" + vf.showAs : "");
   }
 
@@ -4040,9 +4512,9 @@
     renderZones(); // aktualisiert die Aggregations-Auswahl im Werte-Chip
   });
 
-  document.getElementById("add-calc-field-btn").addEventListener("click", function () {
-    calcFieldFormOpen = !calcFieldFormOpen;
-    renderCalcFieldForm();
+  document.getElementById("ribbon-fields-groups-btn").addEventListener("click", function (e) {
+    e.stopPropagation();
+    openRibbonMenu();
   });
 
   document.getElementById("back-to-overview").addEventListener("click", function (e) {
