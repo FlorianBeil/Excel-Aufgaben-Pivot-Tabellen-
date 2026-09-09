@@ -257,17 +257,56 @@
   .hints-box.open { display: block; }
   .hints-box ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
 
-  /* ---------- Excel-Fenster: EIN Tabellenblatt (Quelldaten + Pivot-Ausgabe
-     nebeneinander im selben Raster) plus rechts angedockte PivotTable-Feldliste ---------- */
-  .excel-window { padding: 0; overflow: hidden; }
+  /* ---------- Datenquelle: einklappbar, standardmäßig zu (siehe
+     data-source-box[hidden] im HTML) — gleiches Toggle-Muster wie
+     .hints-toggle/.hints-box oben. ---------- */
+  .data-source-toggle {
+    background: none;
+    border: none;
+    color: var(--excel-green-dark);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.86rem;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .data-source-box {
+    margin-top: 0.5rem;
+  }
+
+  /* Höhe für Kopfzeile + ca. 8 Datenzeilen — alles darüber hinaus scrollt
+     innerhalb der Box selbst (siehe .sheet-wrap: overflow:auto), nie der
+     Container oder gar die ganze Seite. Zusammengesetzter Selektor (statt nur
+     .sheet-wrap--capped), damit das kürzere max-height zuverlässig über der
+     allgemeinen .sheet-wrap-Regel gewinnt, unabhängig von der Reihenfolge im
+     Stylesheet. */
+  .sheet-wrap.sheet-wrap--capped {
+    max-height: 300px;
+  }
+
+  /* ---------- Excel-Fenster: Pivot-Vorschau links, PivotTable-Feldliste
+     rechts. Die Quelldaten-Tabelle lebt separat in der einklappbaren
+     .data-source-card weiter unten (siehe dort) — container-type hier, weil
+     die Seite in einem Ablefy-iframe läuft, dessen tatsächlich verfügbare
+     Breite eine Viewport-Media-Query nicht zuverlässig widerspiegelt. */
+  .excel-window { padding: 0; overflow: hidden; container-type: inline-size; }
 
   .excel-body {
     display: flex;
     align-items: stretch;
   }
 
-  @media (max-width: 860px) {
-    .excel-body { flex-direction: column; }
+  /* Unter 900px Container-Breite: Feldliste über die Pivot-Vorschau stapeln
+     (column-reverse statt column, damit die im DOM zweite .pivot-fields-panel
+     optisch nach oben wandert, ohne die Reihenfolge im Markup anzufassen). */
+  @container (max-width: 900px) {
+    .excel-body { flex-direction: column-reverse; }
+    /* Höhere Spezifität als die Basisregel .pivot-fields-panel (width:280px,
+       weiter unten im Stylesheet definiert) nötig, sonst gewinnt bei
+       gleicher Spezifität die spätere Regel unabhängig von der
+       Container Query. */
+    .excel-body .pivot-fields-panel { width: 100%; align-self: stretch; }
   }
 
   .sheet-caption {
@@ -279,9 +318,13 @@
   }
 
   /* ---------- Arbeitsblatt-Look: Spaltenbuchstaben, Zeilennummern, volle
-     Gitternetzlinien, scharfe Ecken ---------- */
-  .excel-body .sheet-wrap {
-    position: relative; /* Positionierungskontext für das Leer-PivotTable-Overlay */
+     Gitternetzlinien, scharfe Ecken. Ungescoped (nicht mehr nur innerhalb
+     .excel-body), da .sheet-wrap jetzt auch für die eigenständige
+     Datenquelle-Tabelle weiter unten verwendet wird — flex/min-width wirken
+     dort einfach nicht (kein Flex-Elternelement), overflow/max-height aber
+     genauso wie hier. ---------- */
+  .sheet-wrap {
+    position: relative;
     flex: 1;
     min-width: 0;
     max-height: 450px;
@@ -290,46 +333,16 @@
     border-radius: 0;
   }
 
-  /* Leerer-Bericht-Hinweis, wie ihn eine neu angelegte PivotTable in echtem Excel
-     zeigt: schwebt über dem (weiterhin leeren, gitterlinierten) Zellbereich, statt
-     ihn durch eine eigene Box zu ersetzen. Position wird per JS auf die tatsächlich
-     gerenderte Ankerzelle ausgerichtet (Spaltenbreiten sind inhaltsabhängig). */
-  .pivot-empty-overlay {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.7rem;
-    width: 300px;
-    padding: 0.9rem 0.6rem 0.5rem;
-    pointer-events: none;
-  }
-
-  .pivot-empty-overlay__namebox {
-    border: 1px solid var(--grid-gray);
-    background: #fff;
+  /* Hinweistext, solange noch kein Zeilen-/Spaltenfeld abgelegt wurde — normal
+     im Fluss liegend und zentriert (kein Overlay, keine absolute
+     Positionierung, kann daher nie über den Rand hinausschießen). */
+  .pivot-empty-hint {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
     color: var(--text-muted);
     font-family: var(--font-body);
-    font-size: 0.82rem;
-    padding: 0.2rem 1.4rem;
-    border-radius: 2px;
-  }
-
-  .pivot-empty-overlay__text {
-    margin: 0;
-    text-align: center;
-    font-family: var(--font-body);
-    font-weight: 700;
-    color: #1F1F1F;
-    font-size: 0.84rem;
+    font-size: 0.86rem;
     line-height: 1.4;
-    max-width: 250px;
-  }
-
-  .pivot-empty-overlay__art svg {
-    width: 190px;
-    height: auto;
-    display: block;
   }
 
   /* ---------- Filter-Bereich: auswählbar, öffnet ein echtes Dropdown ---------- */
@@ -593,27 +606,6 @@
   table.sheet-table .sheet-rownum, table.sheet-table .sheet-corner {
     min-width: 0;
     width: 1%;
-  }
-
-  /* Nur im leeren Zustand (kein Feld abgelegt): min-width allein reicht nicht,
-     weil die Tabelle mit width:auto trotzdem versucht, den ganzen verfügbaren
-     Platz zu füllen — ohne Inhalt in den Pivot-Spalten fließt dieser Zuwachs
-     ungleichmäßig in irgendeine Spalte statt gleichmäßig auf neue Spalten
-     verteilt zu werden. Deshalb hier jede Spalte hart auf eine feste Breite
-     fixieren (min = max = width); die normale Pivot-Darstellung mit echtem
-     Inhalt bleibt davon unberührt (dort bestimmt weiterhin der Inhalt die
-     Breite, siehe oben). */
-  table.sheet-table.sheet-table--uniform-cols th,
-  table.sheet-table.sheet-table--uniform-cols td {
-    width: 96px;
-    min-width: 96px;
-    max-width: 96px;
-  }
-  table.sheet-table.sheet-table--uniform-cols .sheet-rownum,
-  table.sheet-table.sheet-table--uniform-cols .sheet-corner {
-    width: 32px;
-    min-width: 0;
-    max-width: 32px;
   }
 
   /* Spaltenbuchstaben-Kopfzeile: helle, gedämpfte, zentrierte Chrome-Zeile */
@@ -1439,7 +1431,14 @@
         </div>
       </aside>
     </div>
-    <p class="sheet-caption" id="sheet-caption"></p>
+  </section>
+
+  <section class="card data-source-card">
+    <button type="button" class="data-source-toggle" id="data-source-toggle">Datenquelle anzeigen</button>
+    <div class="data-source-box" id="data-source-box" hidden>
+      <div class="sheet-wrap sheet-wrap--capped" id="source-canvas"></div>
+      <p class="sheet-caption" id="source-caption"></p>
+    </div>
   </section>
 
   <div class="actions">
@@ -1532,13 +1531,12 @@
     return html;
   }
 
-  // ---------- Quelldaten als Zeilen aufbereiten (Spalten A–… des gemeinsamen Blatts) ----------
+  // ---------- Quelldaten als eigenständige Zeilen aufbereiten ----------
   // Jede Übung kann ihre eigene Beispieltabelle mitbringen (siehe
   // EXERCISES[].dataset weiter unten) — DATA/FIELDS/SOURCE_COL_COUNT/
   // sourceRows sind deshalb mutable und werden von loadDataset() befüllt,
   // nicht mehr einmalig fest verdrahtet.
-  var GAP_COLS = 1; // eine leere Spalte zwischen Quelldaten und Pivot-Ausgabe, wie in echten Excel-Blättern üblich
-  var DATA, FIELDS, SOURCE_COL_COUNT, PIVOT_COL_OFFSET, sourceRows;
+  var DATA, FIELDS, SOURCE_COL_COUNT, sourceRows;
 
   // Baut die Quelldaten-Zeilen (inkl. Kopfzeile) generisch aus dataset.columns
   // + dataset.fields + dataset.rows auf — funktioniert für jede Spaltenzahl/
@@ -1549,20 +1547,31 @@
       if (!isNumericType(dataset.fields[col].type)) cell.cls = "rowlabel";
       return cell;
     }
-    var rows = [dataset.columns.map(function (col) {
+    var headerRow = dataset.columns.map(function (col) {
       var cell = cellFor(col, col);
       cell.header = true;
       return cell;
-    })];
-    // Bewusst nicht fixiert (kein .sticky): ein echtes, unformatiertes
-    // Arbeitsblatt friert beim Scrollen keine Inhaltszeilen ein, nur die
-    // Spaltenbuchstaben-/Zeilennummern-Chrome bleibt sichtbar (siehe unten).
+    });
+    // Fixiert (sticky): die Datenquelle-Box zeigt nur noch ca. 8 Zeilen auf
+    // einmal (siehe .sheet-wrap--capped) — beim Scrollen durch ggf. 700+
+    // Zeilen soll die Spaltenüberschrift oben sichtbar bleiben.
+    headerRow.sticky = true;
+    var rows = [headerRow];
     dataset.rows.forEach(function (row) {
       rows.push(dataset.columns.map(function (col) {
         return cellFor(col, filterFieldLabel(col, row[col]));
       }));
     });
     return rows;
+  }
+
+  // Rendert die (unveränderte) Quelldaten-Tabelle in die einklappbare
+  // Datenquelle-Box — einmal pro Datensatzwechsel, nicht bei jedem
+  // renderPivot(), da sich die Quelldaten innerhalb einer Übung nie ändern.
+  function renderSourceDataTable() {
+    document.getElementById("source-canvas").innerHTML = renderSheetTable(sourceRows);
+    document.getElementById("source-caption").textContent =
+      "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + " · " + DATA.length + " Zeilen";
   }
 
   // Wechselt die komplette Datengrundlage (Quelldaten-Tabelle + Feldliste)
@@ -1573,43 +1582,8 @@
     DATA = dataset.rows;
     FIELDS = dataset.fields;
     SOURCE_COL_COUNT = dataset.columns.length;
-    PIVOT_COL_OFFSET = SOURCE_COL_COUNT + GAP_COLS;
     sourceRows = buildSourceRows(dataset);
-  }
-
-  // Fügt Quelldaten- und Pivot-Zeilen spaltenweise zu EINEM Tabellenblatt
-  // zusammen (gemeinsame Zeilennummerierung, eine Lückenspalte dazwischen) —
-  // genau das Bild, das der Nutzer beim Arbeiten in Excel hätte.
-  function mergeIntoSheet(srcRows, pvRows, pvColCount) {
-    var maxRows = Math.max(srcRows.length, pvRows.length);
-    var merged = [];
-    for (var i = 0; i < maxRows; i++) {
-      var row = [];
-      var src = srcRows[i];
-      // Einzelne leere Zellen statt einer einzigen colspan-Zelle — sonst fehlen
-      // innerhalb der Spanne die vertikalen Gitternetzlinien (jede Zelle malt
-      // nur ihren eigenen rechten/unteren Rand, siehe table.sheet-table th/td).
-      if (src) {
-        row = row.concat(src);
-      } else {
-        for (var sc = 0; sc < SOURCE_COL_COUNT; sc++) row.push({ html: "" });
-      }
-      // Eigene Klasse für die Lückenspalte: bleibt immer weiß, auch wenn die
-      // Zeile als Ganzes (über Kopf-/Filterzeilen-Zugehörigkeit) grau oder
-      // blau eingefärbt wird — die Lücke selbst gehört zu keinem der beiden.
-      for (var g = 0; g < GAP_COLS; g++) row.push({ html: "", cls: "sheet-gap" });
-      var pv = pvRows[i];
-      if (pv) {
-        row = row.concat(pv);
-      } else if (pvColCount) {
-        for (var pc = 0; pc < pvColCount; pc++) row.push({ html: "" });
-      }
-      if ((src && src.sticky) || (pv && pv.sticky)) row.sticky = true;
-      if (pv && pv.cls) row.cls = pv.cls;
-      else if (src && src.cls) row.cls = src.cls;
-      merged.push(row);
-    }
-    return merged;
+    renderSourceDataTable();
   }
 
   // ---------- Beispieltabellen je Übung ----------
@@ -3435,37 +3409,6 @@
     document.getElementById("formula-text").textContent = cell.dataset.formula;
   }
 
-  // Leerer-Bericht-Grafik wie in echtem Excel: Tabellen- und Feldlisten-Symbol
-  // mit Kontrollkästchen-Lupe. Erscheint nur, bevor überhaupt ein Feld abgelegt
-  // wurde (echtes Excel zeigt exakt diese Grafik in genau diesem Zustand).
-  var EMPTY_PIVOT_ART_SVG =
-    '<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">' +
-    '<rect x="2" y="10" width="70" height="70" fill="#fff" stroke="#AAB9DE"/>' +
-    '<rect x="2" y="10" width="70" height="13" fill="#4472C4"/>' +
-    '<rect x="2" y="10" width="17" height="13" fill="#B4C6E7"/>' +
-    '<rect x="19" y="10" width="17" height="13" fill="#4472C4"/>' +
-    '<rect x="36" y="10" width="17" height="13" fill="#B4C6E7"/>' +
-    '<rect x="53" y="10" width="19" height="13" fill="#4472C4"/>' +
-    '<g stroke="#D9D9D9">' +
-    '<line x1="2" y1="37" x2="72" y2="37"/><line x1="2" y1="50" x2="72" y2="50"/><line x1="2" y1="63" x2="72" y2="63"/>' +
-    '<line x1="19" y1="23" x2="19" y2="80"/><line x1="36" y1="23" x2="36" y2="80"/><line x1="53" y1="23" x2="53" y2="80"/>' +
-    "</g>" +
-    '<rect x="110" y="4" width="88" height="92" fill="#fff" stroke="#AAB9DE"/>' +
-    '<rect x="110" y="4" width="88" height="12" fill="#4472C4"/>' +
-    '<g fill="#D9D9D9">' +
-    '<rect x="117" y="24" width="60" height="5"/><rect x="117" y="34" width="60" height="5"/><rect x="117" y="44" width="45" height="5"/>' +
-    "</g>" +
-    '<g fill="none" stroke="#AAB9DE">' +
-    '<rect x="117" y="58" width="34" height="13"/><rect x="155" y="58" width="34" height="13"/>' +
-    '<rect x="117" y="75" width="34" height="13"/><rect x="155" y="75" width="34" height="13"/>' +
-    "</g>" +
-    '<circle cx="90" cy="52" r="23" fill="#fff" stroke="#D9D9D9"/>' +
-    '<rect x="79" y="35" width="11" height="11" fill="none" stroke="#A6A6A6"/>' +
-    '<rect x="79" y="48" width="11" height="11" fill="none" stroke="#C00000" stroke-width="1.3"/>' +
-    '<path d="M81 54 L84.5 57.5 L89 51" fill="none" stroke="#C00000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<rect x="79" y="61" width="11" height="11" fill="none" stroke="#A6A6A6"/>' +
-    "</svg>";
-
   // Die im HTML-String vergebenen "top"-Werte für fixierte Zeilen beruhen auf
   // einer angenommenen Zeilenhöhe (ROW_H) — Schriftgrößen/Innenabstände weichen
   // davon aber leicht ab, je nachdem wie viele fixierte Zeilen (Kopfzeile(n),
@@ -3856,23 +3799,6 @@
     if (!e.target.closest(".excel-ribbon__menu") && !e.target.closest("#ribbon-fields-groups-btn")) closeRibbonMenu();
   });
 
-  function positionEmptyOverlay(canvas) {
-    var anchor = canvas.querySelector(".pivot-anchor-cell");
-    var overlay = document.getElementById("pivot-empty-overlay");
-    if (anchor && overlay) {
-      overlay.style.left = anchor.offsetLeft + "px";
-      overlay.style.top = anchor.offsetTop + "px";
-    }
-  }
-
-  function emptyPivotOverlayHtml() {
-    return '<div class="pivot-empty-overlay" id="pivot-empty-overlay">' +
-      '<div class="pivot-empty-overlay__namebox">PivotTable1</div>' +
-      '<p class="pivot-empty-overlay__text">Wählen Sie zum Erstellen eines Berichts die Felder aus der PivotTable-Feldliste aus.</p>' +
-      '<div class="pivot-empty-overlay__art">' + EMPTY_PIVOT_ART_SVG + "</div>" +
-      "</div>";
-  }
-
   function renderPivot() {
     var canvas = document.getElementById("sheet-canvas");
     var rowFields = zones.rows;
@@ -3907,16 +3833,10 @@
     var rowOffset = filterFields.length ? filterFields.length + 1 : 0;
 
     if (rowFields.length === 0 && colFields.length === 0) {
-      // Sonst komplett leeres Blatt: zunächst nur eine Ankerzelle — wie viele
-      // weitere leere Spalten dahinter nötig sind, um den sichtbaren Platz
-      // bis zum Feldbereich zu füllen, wird nach dem ersten Render gemessen
-      // und ergänzt (siehe unten), statt eine feste Anzahl zu erraten.
-      pivotColCount = Math.max(1, filterFields.length ? 3 : 1);
-      var blankRow = [];
-      for (var bc = 0; bc < pivotColCount; bc++) {
-        blankRow.push(bc === 0 ? { html: "", cls: "pivot-anchor-cell" } : { html: "" });
-      }
-      pivotRows[rowOffset] = blankRow;
+      // Noch kein Zeilen-/Spaltenfeld abgelegt: kein Blindraster mehr, nur
+      // die Filterzeile(n) (falls vorhanden, oben schon gebaut) plus ein
+      // normal im Fluss liegender Hinweistext (siehe showEmptyOverlay unten).
+      pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1);
       showEmptyOverlay = true;
     } else {
       var data = getFilteredData();
@@ -3952,9 +3872,8 @@
       if (hasValues) {
         // Physische Spalten der Pivot-Ausgabe (ohne die Zeilenbeschriftungs-
         // Spalte) in exakt der Reihenfolge, in der sie in jeder Datenzeile
-        // erscheinen — legt fest, welcher Spaltenbuchstabe (ab PIVOT_COL_OFFSET,
-        // da Quelldaten + Lückenspalte davor liegen) zu welcher Kombination/
-        // welchem Wertefeld gehört.
+        // erscheinen — legt fest, welcher Spaltenbuchstabe zu welcher
+        // Kombination/welchem Wertefeld gehört.
         var columnMeta = [];
         colCombos.forEach(function (cc) {
           valueFields.forEach(function (vf) { columnMeta.push({ combo: cc, vf: vf }); });
@@ -4007,12 +3926,12 @@
         var firstDataRow = rowOffset + 3; // + die beiden Kopfzeilen
         var lastDataRow = rowOffset + 2 + rowDisplay.length;
         var totalRowNum = lastDataRow + 1;
-        var anchorCell = "$" + columnLetter(1 + PIVOT_COL_OFFSET) + "$" + firstDataRow;
+        var anchorCell = "$" + columnLetter(1) + "$" + firstDataRow;
 
-        // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe
-        // (pivot-header-row je Zelle statt pro Zeile vergeben — die Zeile
-        // enthält über den Merge auch die Quelldaten-Spalten A–D, die ihr
-        // neutrales Grau behalten sollen, nicht das Blau der Pivot-Kopfzeile.)
+        // Kopfzeile 1: Spaltenkombination je Wertefeld-Gruppe (pivot-header-row
+        // je Zelle statt pro Zeile vergeben — die Zeile enthält auch die
+        // Zeilenbeschriftungs-Spalte, die ihr neutrales Grau behalten soll,
+        // nicht das Blau der Pivot-Kopfzeile.)
         var headerRow1 = [{ header: true, cls: "rowlabel pivot-header-row", html: rowFields.length ? rowFields.map(function (f) { return fieldAxisLabel(f, dateGroupLevels); }).join(" / ") : "" }];
         colCombos.forEach(function (cc) {
           headerRow1.push({ header: true, colspan: valueFields.length, cls: "pivot-header-row", html: cc.label });
@@ -4054,7 +3973,7 @@
           var rowMatched = entry.data;
           var dataRow = [{ cls: rowDisplayCellCls(entry), html: rowDisplayLabelHtml(entry) }];
           columnMeta.forEach(function (cm, cIdx) {
-            var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
+            var colLetter = columnLetter(cIdx + 2);
             var val = computeShownValue(cm.vf, entry, cm);
             var filterParts = entry.parts.concat(cm.combo ? cm.combo.parts : []);
             var formula = pivotDataFormula(cm.vf.field, filterParts, anchorCell);
@@ -4077,7 +3996,7 @@
         // computeShownValue noch einmal eigens dafür aufzurufen.
         var POSITIONAL_SHOWAS_MODES = { differenceFrom: true, percentDifferenceFrom: true, runningTotal: true };
         columnMeta.forEach(function (cm, cIdx) {
-          var colLetter = columnLetter(cIdx + 2 + PIVOT_COL_OFFSET);
+          var colLetter = columnLetter(cIdx + 2);
           var colMatched = cm.combo ? data.filter(function (d) { return rowMatchesCombo(d, colFields, cm.combo, dateGroupLevels); }) : data;
           var val;
           if (POSITIONAL_SHOWAS_MODES[cm.vf.showAs]) val = null;
@@ -4130,13 +4049,11 @@
       pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1);
     }
 
-    // Filter-/Leerzeilen wurden ganz oben gebaut, bevor pivotColCount final feststand,
+    // Filterzeilen wurden ganz oben gebaut, bevor pivotColCount final feststand,
     // und haben daher u.U. weniger Zellen als die Kopf-/Datenzeilen (z.B. fehlt sonst
-    // die Gitterlinie der neuen Trennspalte in der Filterzeile). Auf die jeweils
-    // aktuelle Breite auffüllen — auch wiederverwendet, wenn pivotColCount später
-    // durch die dynamische Spaltenerweiterung im leeren Zustand nochmal wächst,
-    // sonst fehlen dort Zellen (und damit vertikale Gitterlinien) in der Filter-/
-    // Leerzeile.
+    // die Gitterlinie der neuen Trennspalte in der Filterzeile). Auf die
+    // finale Breite auffüllen, sonst fehlen dort Zellen (und damit vertikale
+    // Gitterlinien).
     function padPivotRowsTo(count) {
       pivotRows.forEach(function (row) {
         if (!row) return;
@@ -4149,40 +4066,12 @@
     }
     padPivotRowsTo(pivotColCount);
 
-    var tableModifierClass = showEmptyOverlay ? "sheet-table--uniform-cols" : "";
-    canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) +
-      (showEmptyOverlay ? emptyPivotOverlayHtml() : "");
+    // Ohne Zeilen-/Spaltenfeld bleibt höchstens die Filterzeile übrig — kein
+    // Blindraster mehr, stattdessen ein normal im Fluss liegender Hinweistext
+    // (siehe .pivot-empty-hint), der nie über den Rand hinausschießen kann.
+    canvas.innerHTML = (pivotRows.length ? renderSheetTable(pivotRows) : "") +
+      (showEmptyOverlay ? '<div class="pivot-empty-hint">Zieh Felder in die Bereiche rechts, um deine Pivot-Tabelle aufzubauen.</div>' : "");
     fixStickyOffsets(canvas);
-    document.getElementById("sheet-caption").textContent =
-      "Spalten A–" + columnLetter(SOURCE_COL_COUNT) + ": Quelldaten (" + DATA.length + " Zeilen) · ab Spalte " + columnLetter(1 + PIVOT_COL_OFFSET) + ": deine Pivot-Tabelle";
-
-    if (showEmptyOverlay) {
-      positionEmptyOverlay(canvas);
-
-      // Ein echtes Arbeitsblatt hört nicht bei einer festen Spaltenanzahl auf,
-      // sondern läuft mit Gitternetzlinien bis zum sichtbaren Rand weiter.
-      // Nach dem ersten Render (nur die Ankerspalte) messen, wie viel Platz bis
-      // zum Feldbereich noch frei ist, und mit genau so vielen weiteren leeren
-      // Spalten auffüllen — das passt sich automatisch an jede Fenstergröße an,
-      // statt eine feste Anzahl zu hartcodieren.
-      var table = canvas.querySelector("table.sheet-table");
-      var anchorForWidth = canvas.querySelector(".pivot-anchor-cell");
-      if (table && anchorForWidth) {
-        var missingWidth = canvas.clientWidth - table.offsetWidth;
-        var colWidth = anchorForWidth.offsetWidth || 92;
-        if (missingWidth > colWidth) {
-          var extraCols = Math.ceil(missingWidth / colWidth);
-          pivotColCount += extraCols;
-          // Alle Zeilen (inkl. Filter-/Leerzeile), nicht nur die letzte, auf die
-          // neue Breite auffüllen — sonst fehlen dort Gitterlinien für die neuen
-          // Spalten.
-          padPivotRowsTo(pivotColCount);
-          canvas.innerHTML = renderSheetTable(mergeIntoSheet(sourceRows, pivotRows, pivotColCount), tableModifierClass) + emptyPivotOverlayHtml();
-          fixStickyOffsets(canvas);
-          positionEmptyOverlay(canvas);
-        }
-      }
-    }
 
     // Aktive Zelle: standardmäßig die Gesamtsumme unten rechts — didaktisch
     // der interessanteste Fall. Klick auf eine andere Datenzelle (siehe
@@ -4536,6 +4425,13 @@
     var box = document.getElementById("hints-box");
     var open = box.classList.toggle("open");
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
+  });
+
+  document.getElementById("data-source-toggle").addEventListener("click", function () {
+    var box = document.getElementById("data-source-box");
+    var open = box.hidden;
+    box.hidden = !open;
+    this.textContent = open ? "Datenquelle ausblenden" : "Datenquelle anzeigen";
   });
 
   document.getElementById("data-model-checkbox").addEventListener("change", function () {
