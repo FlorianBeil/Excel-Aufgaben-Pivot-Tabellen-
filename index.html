@@ -2687,6 +2687,10 @@
     // braucht, damit es in allen anderen Übungen nicht unnötig vom eigentlich
     // relevanten Bereich (Feldliste/Zonen) ablenkt.
     document.querySelector(".excel-ribbon").hidden = ex.category !== "berechnetesfeld";
+    // "Dem Datenmodell hinzufügen" nur in der Übung zeigen, die "Diskrete
+    // Anzahl" tatsächlich braucht — sonst lenkt die Option in jeder anderen
+    // Übung nur unnötig ab (gleiches Prinzip wie beim Menüband oben).
+    document.querySelector(".data-model-toggle").hidden = ex.category !== "datenmodell";
     document.getElementById("data-model-checkbox").checked = false;
     resetExerciseState();
     renderExerciseText();
