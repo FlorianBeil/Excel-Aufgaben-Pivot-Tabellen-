@@ -88,7 +88,10 @@
      main's eigenes gap wirkt also nur zwischen den beiden (sich gegenseitig
      ausschließenden) Bereichen, nicht innerhalb. Eigener, großzügigerer
      Abstand zwischen Hero/Tabs/Karten bzw. Aufgabe/Tabelle/Aktionen. */
-  #overview-view { display: flex; flex-direction: column; gap: 1.6rem; }
+  /* container-type hier (statt z.B. auf .exercise-picker selbst) — Container
+     Queries können nicht auf die eigene Größe reagieren, brauchen also einen
+     Vorfahren als Bezugsrahmen (siehe .exercise-picker weiter unten). */
+  #overview-view { display: flex; flex-direction: column; gap: 1.6rem; container-type: inline-size; }
   #exercise-workspace { display: flex; flex-direction: column; gap: 1.3rem; }
 
   .card {
@@ -164,10 +167,21 @@
   }
   .level-reset__btn:hover { border-color: var(--error-red); color: var(--error-red); background: var(--error-red-tint); }
 
+  /* Explizit gestuftes Raster (statt auto-fill/minmax) per Container Query —
+     die Seite läuft in einem Ablefy-iframe, dessen tatsächlich verfügbare
+     Breite eine Viewport-Media-Query nicht zuverlässig widerspiegelt (siehe
+     #overview-view: container-type weiter unten). Ohne @container-Treffer
+     (sehr schmaler Container) bleibt es bei einer Spalte. */
   .exercise-picker {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.9rem;
+  }
+  @container (min-width: 700px) {
+    .exercise-picker { grid-template-columns: repeat(2, 1fr); }
+  }
+  @container (min-width: 1000px) {
+    .exercise-picker { grid-template-columns: repeat(3, 1fr); }
   }
 
   .exercise-card {
@@ -204,6 +218,20 @@
   }
   .badge--category { background: var(--excel-green-tint); color: var(--excel-green-dark); }
   .badge--done { background: #E9F6EE; color: var(--success-green); }
+
+  /* Positionsangabe ("2 von 5") — reine Orientierungshilfe, deshalb bewusst
+     kleiner/heller als Titel und ohne Pill-Optik (kein .badge), damit sie
+     nicht mit der Kategorie konkurriert. margin-left:auto schiebt sie im
+     bestehenden Flex-Badges-Row nach rechts, ohne die Badges links
+     anzufassen. */
+  .exercise-card__position {
+    margin-left: auto;
+    font-family: var(--font-body);
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
 
   .exercise-card__title { font-weight: 600; font-size: 1rem; color: var(--text-primary); }
   .exercise-card__desc { margin: 0; font-size: 0.84rem; color: var(--text-muted); line-height: 1.3; flex-grow: 1; }
@@ -2672,12 +2700,13 @@
     var root = document.getElementById("exercise-picker");
     var exercises = exercisesForLevel(activeLevel);
     if (!exercises.length) { root.innerHTML = ""; return; }
-    root.innerHTML = exercises.map(function (ex) {
+    root.innerHTML = exercises.map(function (ex, idx) {
       var done = isCompleted(ex.id);
       return '<button type="button" class="exercise-card' + (done ? " is-done" : "") + '" data-id="' + escapeAttr(ex.id) + '">' +
         '<div class="exercise-card__badges">' +
           '<span class="badge badge--category">' + escapeAttr(formatCategoryLabel(ex.category)) + "</span>" +
           (done ? '<span class="badge badge--done">✓ erledigt</span>' : "") +
+          '<span class="exercise-card__position">' + (idx + 1) + " von " + exercises.length + "</span>" +
         "</div>" +
         '<span class="exercise-card__title">' + escapeAttr(ex.title) + "</span>" +
         (ex.short ? '<p class="exercise-card__desc">' + escapeAttr(ex.short) + "</p>" : "") +
