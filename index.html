@@ -3958,9 +3958,11 @@
       // Inhalt auf die verfügbare Breite wächst — kein Zwei-Pass-Rendering
       // zum Nachmessen nötig.
       var emptyGridCols = Math.max(1, Math.ceil(canvas.clientWidth / 92));
-      var emptyGridRows = 25; // deckt die sichtbare Höhe (max-height 450px ≈ 16 Zeilen) komfortabel ab, Rest scrollbar wie in echtem Excel
       pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1, emptyGridCols);
-      while (pivotRows.length < emptyGridRows) pivotRows.push([]);
+      // Zeilen bis zur Mindesthöhe füllt der gemeinsame Schritt weiter unten
+      // (MIN_VISIBLE_ROWS) — genau derselbe Mechanismus wie unten den
+      // befüllten Zustand über die letzte Datenzeile hinaus mit Gitternetz
+      // weiterlaufen lässt.
       showEmptyOverlay = true;
     } else {
       var data = getFilteredData();
@@ -4073,18 +4075,21 @@
           html: rowFields.length ? 'Zeilenbeschriftungen <span class="pivot-filter-btn"></span>' : ""
         }];
         columnMeta.forEach(function (cm) {
-          var vfLabel = FIELDS[cm.vf.field].calculated ? cm.vf.field : cm.vf.agg + " von " + cm.vf.field;
-          vfLabel += showAsLabelSuffix(cm.vf);
+          var vfSuffix = showAsLabelSuffix(cm.vf);
+          var vfLabel = (FIELDS[cm.vf.field].calculated ? cm.vf.field : cm.vf.agg + " von " + cm.vf.field) + vfSuffix;
           // Lange "Werte anzeigen als"-Zusätze (z.B. "(% vom übergeordneten
           // Zeilenergebnis)") würden als einzeilige nowrap-Beschriftung die
-          // Spalte auf 300px+ aufblähen und mit Nachbarspalten kollidieren.
-          // pivot-vf-header deckelt die Breite und schneidet mit Ellipsis ab;
-          // der volle Text bleibt per Tooltip (title) abrufbar.
+          // Spalte auf 300px+ aufblähen und mit Nachbarspalten kollidieren —
+          // pivot-vf-header deckelt die Breite dafür und schneidet mit
+          // Ellipsis ab (voller Text bleibt per Tooltip abrufbar). Nur dann
+          // anwenden, wenn ein Zusatz tatsächlich vorhanden ist: ohne Zusatz
+          // ("Summe von Umsatz" o.ä.) ist die feste 130px-Breite oft schon zu
+          // knapp und schneidet sonst unnötig auch kurze Beschriftungen ab.
           headerRow2.push({
             header: true,
-            cls: "pivot-header-row pivot-vf-header",
+            cls: "pivot-header-row" + (vfSuffix ? " pivot-vf-header" : ""),
             html: vfLabel,
-            attrs: ' title="' + escapeAttr(vfLabel) + '"'
+            attrs: vfSuffix ? ' title="' + escapeAttr(vfLabel) + '"' : ""
           });
         });
         headerRow2.push({ html: "", cls: "sheet-gap" });
@@ -4188,6 +4193,14 @@
         }
       });
     }
+    // Gitternetz auch unterhalb der letzten Daten-/Gesamtzeile weiterlaufen
+    // lassen, statt dort abrupt in eine weiße Fläche überzugehen — genau wie
+    // ein echtes, unbenutztes Excel-Blatt. Füllt nur auf, kürzt nie (bei
+    // vielen Zeilenkombinationen bleiben es entsprechend mehr als
+    // MIN_VISIBLE_ROWS Zeilen); die neuen Leerzeilen bekommen ihre Zellen
+    // gleich mit über den padPivotRowsTo()-Aufruf direkt danach.
+    var MIN_VISIBLE_ROWS = 25; // deckt die sichtbare Höhe (max-height 450px ≈ 16 Zeilen) komfortabel ab, Rest scrollbar wie in echtem Excel
+    while (pivotRows.length < MIN_VISIBLE_ROWS) pivotRows.push([]);
     padPivotRowsTo(pivotColCount);
 
     // Im leeren Zustand ist pivotRows jetzt immer mit dem Blindraster
