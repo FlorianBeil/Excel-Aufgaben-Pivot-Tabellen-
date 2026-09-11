@@ -1524,6 +1524,15 @@
     </div>
   </section>
 
+  <!-- Direkt unter dem Arbeitsbereich statt ganz unten hinter der Datenquelle
+       — "Prüfen" ist die primäre Aktion und soll ohne Scrollen erreichbar
+       sein, die Datenquelle ist ein optionales Extra und deshalb ganz unten. -->
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-check">Prüfen</button>
+    <button class="btn btn-secondary" id="btn-reset">Zurücksetzen</button>
+  </div>
+  <div id="feedback"></div>
+
   <section class="card data-source-card">
     <button type="button" class="data-source-toggle" id="data-source-toggle">Datenquelle anzeigen</button>
     <div class="data-source-box" id="data-source-box" hidden>
@@ -1531,12 +1540,6 @@
       <p class="sheet-caption" id="source-caption"></p>
     </div>
   </section>
-
-  <div class="actions">
-    <button class="btn btn-primary" id="btn-check">Prüfen</button>
-    <button class="btn btn-secondary" id="btn-reset">Zurücksetzen</button>
-  </div>
-  <div id="feedback"></div>
   </div>
 </main>
 
@@ -4161,8 +4164,11 @@
     // Ohne Zeilen-/Spaltenfeld bleibt höchstens die Filterzeile übrig — kein
     // Blindraster mehr, stattdessen ein normal im Fluss liegender Hinweistext
     // (siehe .pivot-empty-hint), der nie über den Rand hinausschießen kann.
+    // Bewusst ohne Richtungsangabe ("... rechts"): je nach Container-Breite
+    // steht die PivotTable-Feldliste rechts (≥900px) oder oberhalb (<900px,
+    // siehe @container-Regel bei .excel-body) — "rechts" wäre dann falsch.
     canvas.innerHTML = (pivotRows.length ? renderSheetTable(pivotRows) : "") +
-      (showEmptyOverlay ? '<div class="pivot-empty-hint">Zieh Felder in die Bereiche rechts, um deine Pivot-Tabelle aufzubauen.</div>' : "");
+      (showEmptyOverlay ? '<div class="pivot-empty-hint">Zieh Felder aus der PivotTable-Feldliste in die Bereiche Filter, Spalten, Zeilen oder Werte, um deine Pivot-Tabelle aufzubauen.</div>' : "");
     fixStickyOffsets(canvas);
 
     // Aktive Zelle: standardmäßig die Gesamtsumme unten rechts — didaktisch
