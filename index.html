@@ -1339,11 +1339,73 @@
     .success-popup,
     .success-popup__check-circle,
     .success-popup__check-mark,
-    .success-popup__confetti {
+    .success-popup__confetti,
+    .error-popup-overlay,
+    .error-popup,
+    .error-popup__icon-circle,
+    .error-popup__icon-cross {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
     }
   }
+
+  /* ---------- Fehler-Popup bei falscher Lösung — gleiche Mechanik/Animation
+     wie das Erfolgs-Popup oben (dieselben Keyframes wiederverwendet), nur in
+     Rot mit einem Kreuz statt Häkchen und ohne Konfetti; schließt sich per
+     Klick statt automatisch, da der Text hier tatsächlich gelesen werden
+     soll. ---------- */
+  .error-popup-overlay {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(40, 15, 15, 0.4);
+    border-radius: var(--radius);
+    z-index: 9999;
+    cursor: pointer;
+    animation: success-fade-in 0.2s ease-out;
+  }
+  .error-popup {
+    position: relative;
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 2.1rem 2.5rem 2rem;
+    text-align: center;
+    max-width: 360px;
+    box-shadow: 0 24px 60px rgba(146, 32, 32, 0.24);
+    cursor: default;
+    animation: success-pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .error-popup__icon-circle {
+    stroke: var(--error-red);
+    stroke-width: 3;
+    stroke-dasharray: 152;
+    stroke-dashoffset: 152;
+    animation: success-draw-circle 0.5s ease-out forwards;
+  }
+  .error-popup__icon-cross {
+    stroke: var(--error-red);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 52;
+    stroke-dashoffset: 52;
+    animation: success-draw-check 0.35s 0.45s ease-out forwards;
+  }
+  .error-popup__title {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0.9rem 0 0.3rem;
+    color: var(--text-primary);
+  }
+  .error-popup__subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: left;
+  }
+  .error-popup__subtitle ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
 </style>
 </head>
 <body>
@@ -4380,7 +4442,10 @@
     return frag;
   }
 
-  var activeSuccessOverlay = null;
+  // Geteilt zwischen Erfolgs- UND Fehler-Popup: ein neuer Klick auf "Prüfen"
+  // soll ein noch offenes Popup der jeweils anderen Art zuverlässig schließen
+  // statt es stehen zu lassen.
+  var activePopupOverlay = null;
 
   // anchorEl: Element, auf dessen Höhe/Breite das Popup zentriert wird (hier
   // die Tabelle #sheet-canvas) — "position: absolute" mit aus der Bounding-Box
@@ -4388,7 +4453,7 @@
   // Übungsportal, damit es mittig über der Tabelle sitzt statt über die ganze
   // Seite/den ganzen Viewport gelegt zu werden.
   function showSuccessPopup(anchorEl) {
-    if (activeSuccessOverlay) activeSuccessOverlay.remove();
+    if (activePopupOverlay) activePopupOverlay.remove();
 
     var target = (anchorEl && anchorEl.getBoundingClientRect) ? anchorEl : document.body;
     var rect = target.getBoundingClientRect();
@@ -4416,15 +4481,56 @@
     popup.appendChild(buildConfetti());
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
-    activeSuccessOverlay = overlay;
+    activePopupOverlay = overlay;
 
     function close() {
       overlay.removeEventListener("click", close);
       overlay.remove();
-      if (activeSuccessOverlay === overlay) activeSuccessOverlay = null;
+      if (activePopupOverlay === overlay) activePopupOverlay = null;
     }
     overlay.addEventListener("click", close);
     setTimeout(close, 3200);
+  }
+
+  // Fehler-Popup bei falscher Lösung — gleiches Muster wie showSuccessPopup(),
+  // aber ohne automatisches Schließen (der Text soll tatsächlich gelesen
+  // werden können) und mit den konkreten Prüf-Meldungen als Inhalt statt
+  // eines generischen Lobs.
+  function showErrorPopup(anchorEl, messages) {
+    if (activePopupOverlay) activePopupOverlay.remove();
+
+    var target = (anchorEl && anchorEl.getBoundingClientRect) ? anchorEl : document.body;
+    var rect = target.getBoundingClientRect();
+    var scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+    var scrollY = window.pageYOffset || document.documentElement.scrollTop;
+    var pad = 24;
+
+    var overlay = document.createElement("div");
+    overlay.className = "error-popup-overlay";
+    overlay.style.left = (rect.left + scrollX - pad) + "px";
+    overlay.style.top = (rect.top + scrollY - pad) + "px";
+    overlay.style.width = (rect.width + pad * 2) + "px";
+    overlay.style.height = (rect.height + pad * 2) + "px";
+
+    var popup = document.createElement("div");
+    popup.className = "error-popup";
+    popup.innerHTML =
+      '<svg class="error-popup__icon" viewBox="0 0 52 52" width="64" height="64">' +
+      '<circle class="error-popup__icon-circle" cx="26" cy="26" r="24" fill="none"/>' +
+      '<path class="error-popup__icon-cross" fill="none" d="M17 17l18 18M35 17l-18 18"/>' +
+      "</svg>" +
+      '<p class="error-popup__title">Noch nicht ganz</p>' +
+      '<div class="error-popup__subtitle"><ul><li>' + messages.join("</li><li>") + "</li></ul></div>";
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    activePopupOverlay = overlay;
+
+    function close() {
+      overlay.removeEventListener("click", close);
+      overlay.remove();
+      if (activePopupOverlay === overlay) activePopupOverlay = null;
+    }
+    overlay.addEventListener("click", close);
   }
 
   document.getElementById("btn-check").addEventListener("click", function () {
@@ -4442,6 +4548,7 @@
       renderExercisePicker();
     } else {
       feedbackEl.innerHTML = "Noch nicht ganz:<ul><li>" + result.messages.join("</li><li>") + "</li></ul>";
+      showErrorPopup(document.getElementById("sheet-canvas"), result.messages);
     }
   });
 
