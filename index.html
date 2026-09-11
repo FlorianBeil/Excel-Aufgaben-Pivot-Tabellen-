@@ -362,16 +362,30 @@
     border-radius: 0;
   }
 
-  /* Hinweistext, solange noch kein Zeilen-/Spaltenfeld abgelegt wurde — normal
-     im Fluss liegend und zentriert (kein Overlay, keine absolute
-     Positionierung, kann daher nie über den Rand hinausschießen). */
+  /* Hinweistext, solange noch kein Zeilen-/Spaltenfeld abgelegt wurde —
+     schwebt zentriert über dem (jetzt von Anfang an sichtbaren) leeren
+     Raster, siehe renderPivot(). Absolut positioniert relativ zu
+     .sheet-wrap (position:relative) mit festem top-Wert statt top:50%,
+     damit er unabhängig vom Scroll-Zustand des ggf. mehrzeiligen Rasters
+     immer im initial sichtbaren Bereich bleibt. Nur ein kleiner, leicht
+     transparenter Hintergrund direkt hinter dem Text (nicht die ganze
+     Fläche) — das Raster bleibt dadurch überall sonst unverdeckt sichtbar. */
   .pivot-empty-hint {
-    padding: 2.5rem 1.5rem;
+    position: absolute;
+    top: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 320px;
+    padding: 0.9rem 1.2rem;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 10px;
     text-align: center;
     color: var(--text-muted);
     font-family: var(--font-body);
     font-size: 0.86rem;
     line-height: 1.4;
+    pointer-events: none;
   }
 
   /* ---------- Filter-Bereich: auswählbar, öffnet ein echtes Dropdown ---------- */
@@ -3932,10 +3946,21 @@
     var rowOffset = filterFields.length ? filterFields.length + 1 : 0;
 
     if (rowFields.length === 0 && colFields.length === 0) {
-      // Noch kein Zeilen-/Spaltenfeld abgelegt: kein Blindraster mehr, nur
-      // die Filterzeile(n) (falls vorhanden, oben schon gebaut) plus ein
-      // normal im Fluss liegender Hinweistext (siehe showEmptyOverlay unten).
-      pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1);
+      // Noch kein Zeilen-/Spaltenfeld abgelegt: trotzdem ein echtes,
+      // leeres Excel-Raster zeigen (Spaltenköpfe/Zeilennummern/Gitter genau
+      // wie im befüllten Zustand, da renderSheetTable() unten dieselbe
+      // Funktion mit denselben CSS-Klassen ist) — plus der Hinweistext als
+      // Overlay (siehe .pivot-empty-hint). Über der Filterzeile (falls
+      // vorhanden, oben schon gebaut) hinaus mit leeren Zeilen auffüllen.
+      //
+      // canvas.clientWidth ist schon vor jedem Tabelleninhalt korrekt, da
+      // .sheet-wrap mit flex:1 (= flex-basis:0%) unabhängig vom eigenen
+      // Inhalt auf die verfügbare Breite wächst — kein Zwei-Pass-Rendering
+      // zum Nachmessen nötig.
+      var emptyGridCols = Math.max(1, Math.ceil(canvas.clientWidth / 92));
+      var emptyGridRows = 25; // deckt die sichtbare Höhe (max-height 450px ≈ 16 Zeilen) komfortabel ab, Rest scrollbar wie in echtem Excel
+      pivotColCount = Math.max(pivotColCount, filterFields.length ? 3 : 1, emptyGridCols);
+      while (pivotRows.length < emptyGridRows) pivotRows.push([]);
       showEmptyOverlay = true;
     } else {
       var data = getFilteredData();
@@ -4165,13 +4190,14 @@
     }
     padPivotRowsTo(pivotColCount);
 
-    // Ohne Zeilen-/Spaltenfeld bleibt höchstens die Filterzeile übrig — kein
-    // Blindraster mehr, stattdessen ein normal im Fluss liegender Hinweistext
-    // (siehe .pivot-empty-hint), der nie über den Rand hinausschießen kann.
-    // Bewusst ohne Richtungsangabe ("... rechts"): je nach Container-Breite
-    // steht die PivotTable-Feldliste rechts (≥900px) oder oberhalb (<900px,
-    // siehe @container-Regel bei .excel-body) — "rechts" wäre dann falsch.
-    canvas.innerHTML = (pivotRows.length ? renderSheetTable(pivotRows) : "") +
+    // Im leeren Zustand ist pivotRows jetzt immer mit dem Blindraster
+    // aufgefüllt (siehe oben) — renderSheetTable() bekommt daher immer
+    // etwas zu rendern, der Hinweistext (siehe .pivot-empty-hint) schwebt
+    // per position:absolute darüber. Bewusst ohne Richtungsangabe ("...
+    // rechts") im Hinweistext selbst: je nach Container-Breite steht die
+    // PivotTable-Feldliste rechts (≥900px) oder oberhalb (<900px, siehe
+    // @container-Regel bei .excel-body) — "rechts" wäre dann falsch.
+    canvas.innerHTML = renderSheetTable(pivotRows) +
       (showEmptyOverlay ? '<div class="pivot-empty-hint">Zieh Felder aus der PivotTable-Feldliste in die Bereiche Filter, Spalten, Zeilen oder Werte, um deine Pivot-Tabelle aufzubauen.</div>' : "");
     fixStickyOffsets(canvas);
 
