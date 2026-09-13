@@ -359,7 +359,7 @@
     position: relative;
     flex: 1;
     min-width: 0;
-    max-height: 450px;
+    max-height: 560px; /* = .pivot-fields-panel, das im Excel-Stil höher ist */
     overflow: auto;
     border: none;
     border-radius: 0;
@@ -768,32 +768,96 @@
   }
 
   /* ---------- Rechts angedockte PivotTable-Feldliste (echtes Excel-Panel-Vorbild) ---------- */
+  /* Aufgabenbereich „PivotTable-Felder“ wie in Excel 365: Kopf mit ˅/×, Zahnrad,
+     Suchfeld, Feldliste mit Kontrollkästchen, darunter die vier Bereiche als 2×2-
+     Raster. Die Emojis als Feldsymbole bleiben bewusst (Florians Wunsch). */
   .pivot-fields-panel {
-    width: 280px;
+    width: 320px;
     flex-shrink: 0;
     /* Nicht auf die volle Arbeitsblatt-Höhe strecken (.excel-body setzt sonst
-       align-items:stretch) — das Panel soll nur so hoch sein wie sein eigener
-       Inhalt, damit man Feldliste + alle vier Bereiche kompakt auf einen
-       Blick sieht statt in einer halbleeren, hochgezogenen Box. */
+       align-items:stretch) — das Panel ist nur so hoch wie sein Inhalt. */
     align-self: flex-start;
-    background: #fff; /* wie das Arbeitsblatt links — nur die Trennlinie grenzt ab, keine Flächenfarbe */
-    border-left: 1px solid var(--grid-gray);
-    padding: 0.5rem 0.7rem 0.6rem;
+    background: #fff;
+    border-left: 1px solid #D4D4D4;
+    padding: 10px 12px 12px;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    /* Obergrenze für den Fall vieler/langer Zonen-Chips — verhindert, dass das
-       Panel dann höher als das Arbeitsblatt daneben würde. */
-    max-height: 450px;
+    gap: 8px;
+    /* Obergrenze für viele/lange Feld-Kästchen — gleich hoch wie .sheet-wrap */
+    max-height: 560px;
     overflow-y: auto;
+    font-family: var(--font-excel-ui);
+    font-size: 13px;
+    color: #262626;
+  }
+
+  /* Reicht die Höhe nicht, soll das Panel scrollen — nicht der Feldkasten zusammengedrückt werden */
+  .pivot-fields-panel > * { flex-shrink: 0; }
+
+  .pf-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .pivot-fields-panel__title {
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    padding-bottom: 0.22rem;
-    border-bottom: 1px solid var(--grid-gray);
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1F1F1F;
+  }
+
+  .pf-header__icons {
+    display: flex;
+    gap: 10px;
+    color: #424242;
+  }
+
+  .pf-subhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12.5px;
+  }
+
+  .pf-gear {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 26px;
+    padding: 0 5px;
+    border: 1px solid #C8C8C8;
+    border-radius: 3px;
+    color: #424242;
+    flex-shrink: 0;
+  }
+
+  .pf-search {
+    position: relative;
+  }
+
+  .pf-search input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 28px;
+    padding: 0 30px 0 8px;
+    border: 1px solid #C8C8C8;
+    border-radius: 3px;
+    font: inherit;
+    color: #262626;
+    outline: none;
+  }
+
+  .pf-search input:focus { border-color: var(--excel-green); }
+
+  .pf-search svg {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #424242;
+    pointer-events: none;
   }
 
   /* "Dem Datenmodell hinzufügen" — schaltet "Diskrete Anzahl" frei, genau wie
@@ -802,8 +866,8 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.74rem;
-    color: var(--text-muted);
+    font-size: 12.5px;
+    color: #262626;
     cursor: pointer;
     padding: 0.1rem 0;
   }
@@ -966,58 +1030,99 @@
     border-top: 1px solid var(--grid-gray);
   }
 
+  /* Feldliste in einem gerahmten Kasten wie in Excel, Kontrollkästchen = Feld liegt in einem Bereich */
   .pivot-fields-panel__list {
     display: flex;
     flex-direction: column;
-    gap: 0.05rem;
+    border: 1px solid #C8C8C8;
+    min-height: 120px;
+    max-height: 170px; /* 6 Felder (größtes Dataset) ohne Scrollen */
+    overflow-y: auto;
+    padding: 4px 0;
   }
 
   .field-row {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.12rem 0.35rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    gap: 6px;
+    padding: 2px 8px;
+    font-size: 13px;
     cursor: grab;
     user-select: none;
   }
   .field-row > span:last-child { min-width: 0; overflow-wrap: break-word; }
   .field-row:active { cursor: grabbing; }
-  .field-row:hover { background: rgba(16, 124, 65, 0.08); }
-  .field-row.selected { background: var(--excel-green-tint); outline: 1px solid var(--excel-green); }
+  .field-row:hover { background: #F0F0F0; }
+  .field-row.selected { background: var(--excel-green-tint); box-shadow: inset 2px 0 0 var(--excel-green); }
+  .field-row.is-used .field-name { font-weight: 700; } /* Excel hebt verwendete Felder fett hervor */
   .field-row .field-icon { font-size: 0.85rem; }
 
-  /* Einspaltig statt 2x2 gestapelt: jede Zone bekommt die volle Panel-Breite,
-     damit Select/Feldname/Entfernen-Button nie um Platz konkurrieren müssen —
-     robust auch bei längeren Feldnamen als in den aktuellen drei Feldern. */
-  .pivot-fields-panel__areas {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    border-top: 1px solid var(--grid-gray);
-    padding-top: 0.35rem;
+  .field-check {
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--excel-green);
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
+  .pf-areas-caption {
+    margin: 2px 0 0;
+    padding-top: 8px;
+    border-top: 1px dotted #C8C8C8;
+    font-size: 12.5px;
+  }
+
+  /* Die vier Bereiche als 2×2-Raster wie in Excel: Filter | Spalten, Zeilen | Werte */
+  .pivot-fields-panel__areas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .area-box {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 6px 4px 4px;
+  }
+  .area-box:nth-child(odd) { border-right: 1px solid #D4D4D4; padding-left: 0; }
+  .area-box:nth-child(even) { padding-right: 0; }
+  .area-box:nth-child(n+3) { border-top: 1px solid #D4D4D4; }
+
   .area-box__label {
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--text-muted);
-    font-weight: 700;
-    display: block;
-    margin-bottom: 0.12rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 2px 4px;
+    font-size: 12.5px;
+    color: #262626;
+  }
+
+  .area-box__label svg,
+  .area-box__sigma {
+    flex-shrink: 0;
+    color: #616161;
+  }
+
+  .area-box__sigma {
+    width: 14px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1;
   }
 
   .area-box__drop {
-    min-height: 18px;
-    padding: 0.14rem;
-    background: var(--header-gray); /* helle, sichtbar abgesetzte Füllung als Ablagefläche */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    min-height: 52px;
+    padding: 3px;
   }
 
   .pivot-fields-panel .zone-chip {
-    padding: 0.16rem 0.35rem;
-    font-size: 0.76rem;
+    padding: 2px 4px 2px 6px;
+    font-size: 12.5px;
     max-width: 100%;
   }
 
@@ -1190,6 +1295,46 @@
 
   .dropzone.selectable {
     cursor: pointer;
+  }
+
+  /* Excel-Optik innerhalb der Feldliste: weiße Ablageflächen ohne Platzhaltertext,
+     Felder als schlichte weiße Kästchen statt grüner Pillen (Emoji bleibt). */
+  .pivot-fields-panel .dropzone {
+    border: 1px solid #E1E1E1;
+    border-radius: 0;
+    background: #fff;
+  }
+  .pivot-fields-panel .dropzone.dragover {
+    background: var(--excel-green-tint);
+    border-color: var(--excel-green);
+  }
+  .pivot-fields-panel .zone-placeholder { display: none; }
+  .pivot-fields-panel .zone-chip {
+    background: #fff;
+    border: 1px solid #BDBDBD;
+    border-radius: 2px;
+    color: #262626;
+    font-weight: 400;
+  }
+  .pivot-fields-panel .zone-chip:hover { border-color: #8A8A8A; }
+  .pivot-fields-panel .chip.selected {
+    outline: 2px solid var(--excel-green);
+    outline-offset: -1px;
+  }
+  .pivot-fields-panel .zone-chip button.chip-remove {
+    margin-left: auto;
+    color: #8A8A8A;
+    font-size: 15px;
+    font-weight: 400;
+  }
+  .pivot-fields-panel .zone-chip button.chip-remove:hover { color: var(--error-red); }
+  .pivot-fields-panel .zone-chip--multiline { gap: 3px; }
+  .pivot-fields-panel .zone-chip .agg-select {
+    font-family: var(--font-excel-ui);
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid #D1D1D1;
+    border-radius: 2px;
   }
 
   /* ---------- Namenfeld + Bearbeitungsleiste (Excel 365, wie im Funktionen-Portal)
@@ -1621,28 +1766,48 @@
     </div>
     <div class="excel-body">
       <div class="sheet-wrap" id="sheet-canvas"></div>
+      <!-- Aufgabenbereich wie in Excel 365. ˅/×, Zahnrad sind (wie in echtem Excel
+           ohne Wirkung auf die Übung) nur dekorativ; Suchfeld und Kontrollkästchen funktionieren. -->
       <aside class="pivot-fields-panel">
-        <h4 class="pivot-fields-panel__title">PivotTable-Felder</h4>
+        <div class="pf-header">
+          <h4 class="pivot-fields-panel__title">PivotTable-Felder</h4>
+          <span class="pf-header__icons" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="16" height="16"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </span>
+        </div>
+        <div class="pf-subhead">
+          <span>In den Bericht aufzunehmende Felder auswählen:</span>
+          <span class="pf-gear" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="8" cy="8" r="4.6" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            <svg viewBox="0 0 10 10" width="9" height="9"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
         <label class="data-model-toggle">
           <input type="checkbox" id="data-model-checkbox">
           Dem Datenmodell hinzufügen
         </label>
+        <div class="pf-search">
+          <input type="text" id="field-search" placeholder="Suchen" autocomplete="off" aria-label="Felder durchsuchen">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="9.5" cy="6.5" r="4.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 9.5l-4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
         <div class="pivot-fields-panel__list" id="field-list"></div>
+        <p class="pf-areas-caption">Felder zwischen den Bereichen ziehen und ablegen:</p>
         <div class="pivot-fields-panel__areas">
           <div class="area-box" data-zone="filter">
-            <span class="area-box__label">Filter</span>
+            <span class="area-box__label"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 3h12L9.5 8.5V13l-3-1.5v-3z" fill="currentColor"/></svg>Filter</span>
             <div class="area-box__drop dropzone selectable" id="zone-filter"><span class="zone-placeholder">Felder hierher ziehen</span></div>
           </div>
           <div class="area-box" data-zone="columns">
-            <span class="area-box__label">Spalten</span>
+            <span class="area-box__label"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 3v10M6 3v10M9 3v10M12 3v10" stroke="currentColor" stroke-width="1.4"/></svg>Spalten</span>
             <div class="area-box__drop dropzone selectable" id="zone-columns"><span class="zone-placeholder">Felder hierher ziehen</span></div>
           </div>
           <div class="area-box" data-zone="rows">
-            <span class="area-box__label">Zeilen</span>
+            <span class="area-box__label"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.4"/></svg>Zeilen</span>
             <div class="area-box__drop dropzone selectable" id="zone-rows"><span class="zone-placeholder">Felder hierher ziehen</span></div>
           </div>
           <div class="area-box" data-zone="values">
-            <span class="area-box__label">Werte</span>
+            <span class="area-box__label"><span class="area-box__sigma" aria-hidden="true">Σ</span>Werte</span>
             <div class="area-box__drop dropzone selectable" id="zone-values"><span class="zone-placeholder">Felder hierher ziehen</span></div>
           </div>
         </div>
@@ -2820,6 +2985,7 @@
     document.getElementById("data-model-checkbox").checked = false;
     resetExerciseState();
     renderExerciseText();
+    document.getElementById("field-search").value = ""; // Suche aus der vorigen Übung nicht mitnehmen
     renderFieldList();
     renderAll();
   }
@@ -3156,19 +3322,63 @@
     });
   }
 
+  // Suchfeld über der Feldliste (wie in Excel) — filtert nur die Anzeige.
+  var fieldSearchEl = document.getElementById("field-search");
+  fieldSearchEl.addEventListener("input", function () { renderFieldList(); });
+
+  function fieldInAnyZone(name) {
+    return ["filter", "columns", "rows", "values"].some(function (z) { return fieldInZone(z, name); });
+  }
+
+  // Kontrollkästchen wie in Excel: Anhaken legt das Feld in den Standardbereich
+  // (Zahlen → Werte, sonst → Zeilen), Abhaken entfernt es aus allen Bereichen.
+  function toggleFieldInReport(name) {
+    if (fieldInAnyZone(name)) {
+      ["filter", "columns", "rows", "values"].forEach(function (z) {
+        if (fieldInZone(z, name)) removeFromZoneState(z, name); // bei "values" ohne entryId: alle Einträge des Felds
+      });
+    } else {
+      addToZoneState(isNumericType(FIELDS[name].type) ? "values" : "rows", name);
+    }
+    selectedField = null;
+    selectedFieldZone = null;
+    selectedEntryId = null;
+    renderFieldList();
+    renderAll();
+  }
+
+  // Häkchen + Fettdruck an den aktuellen Zonen-Zustand angleichen (aus renderZones
+  // aufgerufen, damit auch Drag & Drop und ×-Entfernen die Kontrollkästchen aktualisieren).
+  function syncFieldChecks() {
+    fieldListEl.querySelectorAll(".field-row").forEach(function (row) {
+      var used = fieldInAnyZone(row.dataset.field);
+      row.classList.toggle("is-used", used);
+      var check = row.querySelector(".field-check");
+      if (check) check.checked = used;
+    });
+  }
+
   function renderFieldList() {
+    var query = fieldSearchEl ? fieldSearchEl.value.trim().toLowerCase() : "";
     var html = "";
     Object.keys(FIELDS).forEach(function (name) {
       // Nur markieren, wenn die Auswahl auch wirklich aus der Feldliste stammt —
       // ein zum Verschieben ausgewähltes Feld aus einer Zone zeigt seine
       // Markierung stattdessen dort (siehe renderZone).
       var sel = (selectedField === name && selectedFieldZone === null) ? " selected" : "";
-      html += '<div class="field-row' + sel + '" draggable="true" data-field="' + name + '">' +
-        '<span class="field-icon">' + FIELDS[name].icon + "</span><span>" + name + "</span></div>";
+      var hidden = query && name.toLowerCase().indexOf(query) === -1 ? " hidden" : "";
+      html += '<div class="field-row' + sel + '" draggable="true" data-field="' + name + '"' + hidden + '>' +
+        '<input type="checkbox" class="field-check" tabindex="-1" aria-label="' + escapeAttr(name) + ' in den Bericht aufnehmen">' +
+        '<span class="field-icon">' + FIELDS[name].icon + '</span><span class="field-name">' + name + "</span></div>";
     });
     fieldListEl.innerHTML = html;
+    syncFieldChecks();
 
     fieldListEl.querySelectorAll(".field-row").forEach(function (row) {
+      row.querySelector(".field-check").addEventListener("click", function (e) {
+        e.stopPropagation(); // keine Klick-Auswahl der Zeile auslösen
+        toggleFieldInReport(row.dataset.field);
+      });
       row.addEventListener("dragstart", function (e) {
         e.dataTransfer.setData("text/plain", row.dataset.field);
         row.classList.add("dragging");
@@ -3358,6 +3568,7 @@
 
   function renderZones() {
     Object.keys(zoneEls).forEach(renderZone);
+    syncFieldChecks();
   }
 
   // ---------- Drag & Drop + Klick-Fallback auf Zonen ----------
@@ -4328,7 +4539,7 @@
     // vielen Zeilenkombinationen bleiben es entsprechend mehr als
     // MIN_VISIBLE_ROWS Zeilen); die neuen Leerzeilen bekommen ihre Zellen
     // gleich mit über den padPivotRowsTo()-Aufruf direkt danach.
-    var MIN_VISIBLE_ROWS = 25; // deckt die sichtbare Höhe (max-height 450px ≈ 16 Zeilen) komfortabel ab, Rest scrollbar wie in echtem Excel
+    var MIN_VISIBLE_ROWS = 28; // deckt die sichtbare Höhe (max-height 560px ≈ 20 Zeilen) komfortabel ab, Rest scrollbar wie in echtem Excel
     while (pivotRows.length < MIN_VISIBLE_ROWS) pivotRows.push([]);
     padPivotRowsTo(pivotColCount);
 
