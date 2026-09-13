@@ -1844,6 +1844,46 @@
 (function () {
   "use strict";
 
+  // ---------- Anonyme Nutzungs-Ereignisse ----------
+  // Gleiche Supabase-Tabelle public.events wie das Funktionen-Portal (SQL:
+  // excel-flo-uebungsportal/supabase/events.sql). Per RLS nur Einfügen erlaubt;
+  // keine E-Mail/Nutzer-ID, nur eine zufällige ID pro Browser-Sitzung. Reines
+  // fetch, Fehler (offline, Blocker, Tabelle fehlt) werden verschluckt und
+  // beeinflussen die Übung nie.
+  var TRACK_URL = "https://hbhagmmbowplzjzfvuao.supabase.co/rest/v1/events";
+  var TRACK_KEY = "sb_publishable_Ee47HbgO5Ne8PP9Jh5ugag_iE_lZcp6"; // öffentlicher Schlüssel, Zugriff über RLS begrenzt
+  var trackSession = null;
+  var trackStats = { openedAt: Date.now(), attempts: 0 };
+
+  function getTrackSession() {
+    if (trackSession) return trackSession;
+    try { trackSession = sessionStorage.getItem("excelflo_tracking_session"); } catch (e) {}
+    if (!trackSession) {
+      trackSession = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : "s-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+      try { sessionStorage.setItem("excelflo_tracking_session", trackSession); } catch (e) {}
+    }
+    return trackSession;
+  }
+
+  function trackEvent(event, detail) {
+    try {
+      fetch(TRACK_URL, {
+        method: "POST",
+        headers: { apikey: TRACK_KEY, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({
+          portal: "pivot",
+          exercise_id: currentExercise ? currentExercise.id : null,
+          event: event,
+          detail: detail || {},
+          session_id: getTrackSession()
+        }),
+        keepalive: true
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   // ---------- Datengenerierung (seeded, damit die Demo stabil bleibt) ----------
   function mulberry32(seed) {
     return function () {
@@ -2994,6 +3034,9 @@
     document.getElementById("field-search").value = ""; // Suche aus der vorigen Übung nicht mitnehmen
     renderFieldList();
     renderAll();
+
+    trackStats = { openedAt: Date.now(), attempts: 0 };
+    trackEvent("exercise_open");
   }
 
   function showOverview() {
@@ -4940,6 +4983,20 @@
   document.getElementById("btn-check").addEventListener("click", function () {
     var result = checkSolution();
 
+    // Feldbelegung mitschicken: zeigt später, welche falschen Lösungswege häufig sind
+    trackStats.attempts++;
+    trackEvent("check", {
+      correct: !!result.correct,
+      attempt: trackStats.attempts,
+      seconds: Math.round((Date.now() - trackStats.openedAt) / 1000),
+      zones: {
+        filter: zones.filter,
+        columns: zones.columns,
+        rows: zones.rows,
+        values: zones.values.map(function (v) { return v.field + ":" + v.agg; })
+      }
+    });
+
     feedbackEl.classList.remove("correct", "incorrect");
     feedbackEl.classList.add("show", result.correct ? "correct" : "incorrect");
 
@@ -4960,12 +5017,14 @@
     resetExerciseState();
     renderFieldList();
     renderAll();
+    trackEvent("reset");
   });
 
   document.getElementById("hints-toggle").addEventListener("click", function () {
     var box = document.getElementById("hints-box");
     var open = box.classList.toggle("open");
     this.textContent = open ? "Tipps ausblenden" : "Tipps anzeigen";
+    if (open) trackEvent("hints_open");
   });
 
   document.getElementById("data-source-toggle").addEventListener("click", function () {
@@ -4973,6 +5032,7 @@
     var open = box.hidden;
     box.hidden = !open;
     this.textContent = open ? "Datenquelle ausblenden" : "Datenquelle anzeigen";
+    if (open) trackEvent("data_source_open");
   });
 
   document.getElementById("data-model-checkbox").addEventListener("change", function () {
