@@ -30,6 +30,9 @@
     --font-heading: "Space Grotesk", sans-serif;
     --font-body: "Inter", sans-serif;
     --font-mono: "JetBrains Mono", monospace;
+    /* Excel-Nachbau (Arbeitsblatt + Bearbeitungsleiste), gleiche Stacks wie im Funktionen-Portal */
+    --font-excel: "Aptos Narrow", Aptos, Calibri, "Segoe UI", Arial, sans-serif;
+    --font-excel-ui: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, Arial, sans-serif;
 
     --radius: 10px;
   }
@@ -599,8 +602,9 @@
        orientieren (besonders sichtbar, wenn die Pivot-Spalten noch leer
        sind: dann fließt der komplette überschüssige Platz in A–C). */
     width: auto;
-    font-size: 0.82rem;
-    font-family: var(--font-mono);
+    font-size: 14px;
+    font-family: var(--font-excel);
+    color: #1F1F1F;
   }
 
   table.sheet-table th, table.sheet-table td {
@@ -620,14 +624,20 @@
      <th>-Tag selbst, nicht an der Zeile — sonst würde jede Zelle, die nur
      zufällig eine fixierte Zeile teilt (z. B. eine Quelldaten-Datenzeile
      neben einer zweiten Pivot-Kopfzeile), fälschlich grau eingefärbt. */
+  /* Inhaltliche Überschriften (z. B. Feldnamen der Datenquelle) wie in einem
+     echten Excel-Blatt: nur fett, keine graue Füllung — grau sind nur die
+     Spaltenbuchstaben/Zeilennummern (siehe unten). */
   table.sheet-table th {
     text-align: center;
-    background: var(--header-gray);
-    font-family: var(--font-body);
-    font-weight: 600;
+    background: #fff;
+    font-family: var(--font-excel);
+    font-weight: 700;
   }
   table.sheet-table td { text-align: right; }
   table.sheet-table .rowlabel { text-align: left; font-weight: 500; }
+  /* Überschriften bleiben fett, auch wenn sie als Text-Spalte linksbündig sind
+     (sonst wären „Datum/Region/…“ dünner als „Umsatz“) */
+  table.sheet-table th.rowlabel { font-weight: 700; }
 
   /* Gruppierte Zeilen (zwei Felder in derselben Zone, z.B. Region + Land
      beide in Zeilen): eingerückte, ein-/ausklappbare Gliederung wie in
@@ -651,35 +661,51 @@
     width: 1%;
   }
 
-  /* Spaltenbuchstaben-Kopfzeile: helle, gedämpfte, zentrierte Chrome-Zeile */
-  table.sheet-table .sheet-colheads th {
+  /* Spaltenbuchstaben und Zeilennummern wie in Excel 365: hellgrau, Segoe UI,
+     aktive Spalte/Zeile dunkler mit grüner Kante (siehe highlightActiveHeaders()) */
+  table.sheet-table .sheet-colheads th,
+  table.sheet-table .sheet-rownum {
     position: sticky;
-    top: 0;
-    background: var(--header-gray);
-    color: var(--text-muted);
-    font-family: var(--font-body);
-    font-size: 0.72rem;
-    font-weight: 600;
+    background: #F5F5F5;
+    border-right-color: #D4D4D4;
+    border-bottom-color: #D4D4D4;
+    color: #444;
+    font-family: var(--font-excel-ui);
+    font-size: 12.5px;
+    font-weight: 400;
+    text-align: center;
     z-index: 2;
+  }
+  table.sheet-table .sheet-colheads th { top: 0; }
+  table.sheet-table .sheet-rownum { left: 0; }
+
+  table.sheet-table .sheet-colheads th.is-active {
+    background: #E1E1E1;
+    color: #0E6B37;
+    box-shadow: inset 0 -2px 0 var(--excel-green);
+  }
+  table.sheet-table .sheet-rownum.is-active {
+    background: #E1E1E1;
+    color: #0E6B37;
+    box-shadow: inset -2px 0 0 var(--excel-green);
   }
 
   table.sheet-table .sheet-corner {
     position: sticky;
     left: 0;
     z-index: 3;
-    background: var(--header-gray);
+    background: #F5F5F5;
   }
 
-  /* Zeilennummern-Spalte: gleiche gedämpfte Chrome-Optik */
-  table.sheet-table .sheet-rownum {
-    position: sticky;
-    left: 0;
-    background: var(--header-gray);
-    color: var(--text-muted);
-    font-family: var(--font-body);
-    font-size: 0.72rem;
-    font-weight: 600;
-    z-index: 2;
+  /* Das kleine graue Dreieck in der linken oberen Ecke ("Alles auswählen") */
+  table.sheet-table .sheet-corner::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    border-style: solid;
+    border-width: 0 0 8px 8px;
+    border-color: transparent transparent #BDBDBD transparent;
   }
 
   /* Fixiert eine inhaltliche Kopfzeile (Feldnamen bzw. Pivot-Header) beim
@@ -1166,38 +1192,112 @@
     cursor: pointer;
   }
 
-  /* ---------- Formelleiste + aktive Zelle (nur Pivot-Vorschau) ---------- */
+  /* ---------- Namenfeld + Bearbeitungsleiste (Excel 365, wie im Funktionen-Portal)
+     + aktive Zelle (nur Pivot-Vorschau) ---------- */
   .formula-bar {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    border-bottom: 1px solid var(--grid-gray);
+    gap: 6px;
+    padding: 6px 8px;
     background: #fff;
-    padding: 0.35rem 0.6rem;
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
+    border-bottom: 1px solid #E1E1E1;
+    font-family: var(--font-excel-ui);
+    font-size: 13px;
+    color: #262626;
+  }
+
+  .formula-namebox,
+  .formula-functions,
+  .formula-field {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    border: 1px solid #D1D1D1;
+    border-radius: 4px;
+    background: #fff;
   }
 
   .formula-namebox {
-    min-width: 3.2rem;
-    padding: 0.1rem 0.5rem 0.1rem 0;
-    margin-right: 0.2rem;
-    border-right: 1px solid var(--grid-gray);
-    color: var(--text-primary);
-    font-weight: 600;
+    flex: 0 0 auto;
+    justify-content: space-between;
+    gap: 6px;
+    width: 104px;
+    padding: 0 6px 0 8px;
+  }
+
+  .formula-namebox__ref {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .formula-namebox svg,
+  .formula-fx svg {
+    flex: 0 0 auto;
+    color: #616161;
+  }
+
+  .formula-grip {
+    display: flex;
+    align-items: center;
+    color: #8A8A8A;
+  }
+
+  .formula-functions {
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 0 3px;
+  }
+
+  /* ✕ und ✓ ausgegraut wie in Excel, solange keine Eingabe läuft */
+  .formula-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 20px;
+    color: #B8B8B8;
   }
 
   .formula-fx {
-    color: var(--excel-green-dark);
-    font-style: italic;
-    font-weight: 700;
-    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+    padding: 0 4px 0 5px;
+    color: #424242;
+  }
+
+  .formula-fx i {
+    font-family: "Cambria Math", Cambria, "Times New Roman", serif;
+    font-size: 15px;
+    letter-spacing: -0.5px;
+  }
+
+  .formula-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0 8px;
+    overflow: hidden;
   }
 
   .formula-text {
-    color: var(--text-primary);
+    width: 100%;
+    font-family: var(--font-excel);
+    font-size: 14px;
+    color: #1F1F1F;
     white-space: nowrap;
     overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .formula-text::-webkit-scrollbar {
+    display: none;
+  }
+
+  @container (max-width: 520px) {
+    .formula-namebox { width: 70px; }
+    .formula-grip { display: none; }
   }
 
   .sheet-cell--value { cursor: pointer; }
@@ -1502,10 +1602,22 @@
         </div>
       </div>
     </div>
+    <!-- Namenfeld + Bearbeitungsleiste im Stil von Excel 365 (gleicher Aufbau wie im
+         Funktionen-Portal). ✕/✓ bleiben ausgegraut, da Pivot-Zellen nicht bearbeitet werden. -->
     <div class="formula-bar">
-      <span class="formula-namebox" id="formula-namebox"></span>
-      <span class="formula-fx" aria-hidden="true">𝑓x</span>
-      <span class="formula-text" id="formula-text"></span>
+      <div class="formula-namebox" title="Namenfeld">
+        <span class="formula-namebox__ref" id="formula-namebox"></span>
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="formula-grip" aria-hidden="true"><svg viewBox="0 0 4 14" width="4" height="14"><circle cx="2" cy="2.5" r="1" fill="currentColor"/><circle cx="2" cy="7" r="1" fill="currentColor"/><circle cx="2" cy="11.5" r="1" fill="currentColor"/></svg></span>
+      <div class="formula-functions" aria-hidden="true">
+        <span class="formula-icon" title="Abbrechen"><svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+        <span class="formula-icon" title="Eingeben"><svg viewBox="0 0 12 12" width="13" height="13"><path d="M2 6.5l2.6 2.6L10 3.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="formula-fx" title="Funktion einfügen"><i>fx</i><svg viewBox="0 0 10 10" width="10" height="10"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+      <div class="formula-field">
+        <span class="formula-text" id="formula-text"></span>
+      </div>
     </div>
     <div class="excel-body">
       <div class="sheet-wrap" id="sheet-canvas"></div>
@@ -3518,8 +3630,25 @@
     var prevActive = document.querySelector(".sheet-cell--active");
     if (prevActive) prevActive.classList.remove("sheet-cell--active");
     cell.classList.add("sheet-cell--active");
+    highlightActiveHeaders(cell);
     document.getElementById("formula-namebox").textContent = cell.dataset.addr;
     document.getElementById("formula-text").textContent = cell.dataset.formula;
+  }
+
+  // Wie in Excel: Spaltenbuchstabe und Zeilennummer der aktiven Zelle hervorheben.
+  function highlightActiveHeaders(cell) {
+    var table = cell.closest("table");
+    if (!table) return;
+    table.querySelectorAll(".sheet-colheads th.is-active, .sheet-rownum.is-active").forEach(function (h) {
+      h.classList.remove("is-active");
+    });
+    var m = /^([A-Z]+)(\d+)$/.exec(cell.dataset.addr || "");
+    if (!m) return;
+    table.querySelectorAll(".sheet-colheads th").forEach(function (th) {
+      if (th.textContent === m[1]) th.classList.add("is-active");
+    });
+    var rownum = table.querySelectorAll(".sheet-rownum")[parseInt(m[2], 10) - 1];
+    if (rownum) rownum.classList.add("is-active");
   }
 
   // Die im HTML-String vergebenen "top"-Werte für fixierte Zeilen beruhen auf
@@ -4221,7 +4350,8 @@
     if (valueCells.length) {
       activateCell(valueCells[valueCells.length - 1]);
     } else {
-      document.getElementById("formula-namebox").textContent = "";
+      // Excel zeigt im Namenfeld immer einen Bezug — ohne Pivot-Werte steht die Auswahl auf A1
+      document.getElementById("formula-namebox").textContent = "A1";
       document.getElementById("formula-text").textContent = "";
     }
   }
